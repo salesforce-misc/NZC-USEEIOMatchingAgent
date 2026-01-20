@@ -95,24 +95,76 @@ public class LLMService {
     }
     
     /**
-     * @description Call LLM via LLM Open Connector
-     * @description TODO: Implement actual LLM Open Connector integration
-     * @description This is a placeholder - you'll need to configure based on your LLM setup
+     * @description Call LLM via Agentforce Models API with Data Library grounding
+     * @description Uses Salesforce's managed models (GPT-4, Claude, etc.) with native Data Library grounding
      * @param prompt The prompt to send to LLM
      * @return JSON response from LLM
      */
     private static String callLLMOpenConnector(String prompt) {
-        // TODO: Implement actual LLM Open Connector call
-        // This will depend on your specific LLM setup:
-        // - Named Credentials for LLM provider
-        // - Custom Metadata for LLM configuration
-        // - LLM Open Connector API calls
+        try {
+            // Use Agentforce's native Models API
+            // This uses Salesforce's managed models - no external API keys needed!
+            
+            // Create the request
+            aiplatform.ModelsAPI.Request request = new aiplatform.ModelsAPI.Request();
+            
+            // Set the model (use a standard Agentforce model)
+            // Options: 'gpt-4o', 'gpt-4-turbo', 'claude-3-5-sonnet-20241022', etc.
+            // You can get this from Custom Metadata Type if needed
+            request.model = getModelName(); // Default: 'gpt-4o'
+            
+            // Set the prompt
+            request.prompt = prompt;
+            
+            // Configure grounding with Data Library
+            // The system will automatically search your Data Library based on the prompt
+            request.grounding = new aiplatform.ModelsAPI.Grounding();
+            request.grounding.enabled = true;
+            request.grounding.source = 'DATA_LIBRARY'; // Use Data Library as source
+            
+            // Optional: Configure grounding parameters
+            request.grounding.topK = 5; // Number of relevant sections to retrieve (5-10 recommended)
+            request.grounding.relevanceThreshold = 0.7; // Minimum similarity score (0.0-1.0)
+            
+            // Set other parameters
+            request.temperature = 0.2; // Lower = more deterministic (good for classification)
+            request.maxTokens = 2000; // Maximum response length
+            
+            // Make the API call
+            aiplatform.ModelsAPI.Response response = aiplatform.ModelsAPI.invoke(request);
+            
+            // Return the response text
+            if (response != null && response.text != null) {
+                return response.text;
+            } else {
+                throw new LLMServiceException('Empty response from Models API');
+            }
+            
+        } catch (Exception e) {
+            // If Models API is not available, provide helpful error message
+            String errorMsg = 'Models API call failed: ' + e.getMessage();
+            if (e.getMessage().contains('aiplatform') || e.getMessage().contains('ModelsAPI')) {
+                errorMsg += '\n\nNote: Ensure Agentforce is enabled and Models API is available in your org.';
+                errorMsg += '\nAlternatively, you can configure a custom LLM Open Connector (see LLM_INTEGRATION_SETUP.md).';
+            }
+            throw new LLMServiceException(errorMsg);
+        }
+    }
+    
+    /**
+     * @description Get model name from Custom Metadata or use default
+     * @return Model name string
+     */
+    private static String getModelName() {
+        // Option 1: From Custom Metadata Type (recommended for flexibility)
+        // LLM_Config__mdt config = LLM_Config__mdt.getInstance('Default');
+        // if (config != null && String.isNotBlank(config.Model__c)) {
+        //     return config.Model__c;
+        // }
         
-        // Placeholder implementation
-        // In production, this would make an HTTP callout to your LLM provider
-        // with the prompt and Knowledge Library grounding enabled
-        
-        throw new LLMServiceException('LLM integration not yet configured. Please set up LLM Open Connector with Agentforce Knowledge Library grounding.');
+        // Option 2: Default to GPT-4o (or another standard model)
+        // Standard Agentforce models: 'gpt-4o', 'gpt-4-turbo', 'claude-3-5-sonnet-20241022'
+        return 'gpt-4o';
     }
     
     /**
