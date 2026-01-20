@@ -1,0 +1,234 @@
+<template>
+    <lightning-card title="USEEIO Emissions Factor Matching" icon-name="standard:data_mapping">
+        <div class="slds-p-around_medium">
+            
+            <!-- Spending Categories Display -->
+            <div class="slds-m-bottom_medium">
+                <h3 class="slds-text-heading_small slds-m-bottom_small">Spending Categories</h3>
+                <template if:true={hasSpendingCategories}>
+                    <div class="slds-box slds-theme_shade slds-m-bottom_small">
+                        <dl class="slds-list_horizontal slds-wrap">
+                            <template if:true={spendingCategory1}>
+                                <dt class="slds-item_label slds-text-color_weak slds-truncate" title="Category 1">
+                                    Category 1:
+                                </dt>
+                                <dd class="slds-item_detail slds-truncate" title={spendingCategory1}>
+                                    {spendingCategory1}
+                                </dd>
+                            </template>
+                            <template if:true={spendingCategory2}>
+                                <dt class="slds-item_label slds-text-color_weak slds-truncate" title="Category 2">
+                                    Category 2:
+                                </dt>
+                                <dd class="slds-item_detail slds-truncate" title={spendingCategory2}>
+                                    {spendingCategory2}
+                                </dd>
+                            </template>
+                            <template if:true={spendingCategory3}>
+                                <dt class="slds-item_label slds-text-color_weak slds-truncate" title="Category 3">
+                                    Category 3:
+                                </dt>
+                                <dd class="slds-item_detail slds-truncate" title={spendingCategory3}>
+                                    {spendingCategory3}
+                                </dd>
+                            </template>
+                        </dl>
+                    </div>
+                </template>
+                <template if:false={hasSpendingCategories}>
+                    <div class="slds-text-color_weak slds-text-align_center slds-p-around_medium">
+                        No spending categories available for this record.
+                    </div>
+                </template>
+            </div>
+
+            <!-- Current Match Status (if exists) -->
+            <template if:true={hasMatch}>
+                <div class="slds-box slds-theme_info slds-m-bottom_medium">
+                    <div class="slds-grid slds-grid_align-spread">
+                        <div>
+                            <h3 class="slds-text-heading_small slds-m-bottom_x-small">Current Match</h3>
+                            <p class="slds-text-body_small">An emissions factor is already linked to this record.</p>
+                            <template if:true={currentConfidenceScore}>
+                                <div class="slds-m-top_small">
+                                    <span class={currentConfidenceClass}>
+                                        Confidence: {currentConfidencePercentage}%
+                                    </span>
+                                    <template if:true={currentMatchSource}>
+                                        <span class="slds-m-left_small slds-text-color_weak">
+                                            ({currentMatchSource})
+                                        </span>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                        <div>
+                            <lightning-button 
+                                label="Find New Match" 
+                                variant="neutral"
+                                onclick={handleFindMatch}
+                                disabled={isLoading}>
+                            </lightning-button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Find Match Button -->
+            <div class="slds-m-bottom_medium">
+                <lightning-button 
+                    label="Find Emissions Factor" 
+                    variant="brand"
+                    icon-name="utility:search"
+                    onclick={handleFindMatch}
+                    disabled={isLoading || !hasSpendingCategories}
+                    class="slds-m-right_small">
+                </lightning-button>
+                <template if:true={showResults}>
+                    <lightning-button 
+                        label="Try Again" 
+                        variant="neutral"
+                        onclick={handleTryAgain}
+                        disabled={isLoading}>
+                    </lightning-button>
+                </template>
+            </div>
+
+            <!-- Loading Spinner -->
+            <template if:true={isLoading}>
+                <div class="slds-align_absolute-center slds-m-vertical_large">
+                    <lightning-spinner alternative-text="Finding match..." size="medium"></lightning-spinner>
+                    <p class="slds-text-align_center slds-m-top_small slds-text-color_weak">
+                        Analyzing spending categories and searching for matching emissions factor...
+                    </p>
+                </div>
+            </template>
+
+            <!-- Match Results -->
+            <template if:true={showResults}>
+                <template if:true={matchingResult}>
+                    <template if:true={matchingResult.recommendedFactorId}>
+                        <!-- Recommended Match -->
+                        <div class="slds-box slds-theme_success slds-m-bottom_medium">
+                            <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                                <div>
+                                    <h3 class="slds-text-heading_small slds-m-bottom_x-small">Recommended Match</h3>
+                                    <div class="slds-grid slds-grid_vertical-align-center slds-gutters_small">
+                                        <div>
+                                            <span class={confidenceClass}>
+                                                {confidenceLevel} Confidence ({confidencePercentage}%)
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="slds-m-top_small">
+                                <dl class="slds-list_horizontal slds-wrap">
+                                    <template if:true={matchingResult.recommendedNaicsCode}>
+                                        <dt class="slds-item_label slds-text-color_weak slds-truncate">
+                                            NAICS Code:
+                                        </dt>
+                                        <dd class="slds-item_detail slds-truncate">
+                                            {matchingResult.recommendedNaicsCode}
+                                        </dd>
+                                    </template>
+                                    <template if:true={matchingResult.recommendedEconomicSector}>
+                                        <dt class="slds-item_label slds-text-color_weak slds-truncate">
+                                            Economic Sector:
+                                        </dt>
+                                        <dd class="slds-item_detail slds-truncate">
+                                            {matchingResult.recommendedEconomicSector}
+                                        </dd>
+                                    </template>
+                                    <template if:true={matchingResult.emissionsFactorValue}>
+                                        <dt class="slds-item_label slds-text-color_weak slds-truncate">
+                                            Emissions Factor:
+                                        </dt>
+                                        <dd class="slds-item_detail slds-truncate">
+                                            {matchingResult.emissionsFactorValue} tCO2e per million USD
+                                        </dd>
+                                    </template>
+                                </dl>
+                            </div>
+                            
+                            <template if:true={matchingResult.reasoning}>
+                                <div class="slds-m-top_medium">
+                                    <h4 class="slds-text-heading_xx-small slds-m-bottom_x-small">Reasoning:</h4>
+                                    <p class="slds-text-body_small slds-text-color_weak">
+                                        {matchingResult.reasoning}
+                                    </p>
+                                </div>
+                            </template>
+                            
+                            <div class="slds-m-top_medium">
+                                <lightning-button 
+                                    label="Apply Match" 
+                                    variant="brand"
+                                    onclick={handleApplyMatch}
+                                    disabled={isLoading || !canApplyMatch}>
+                                </lightning-button>
+                            </div>
+                        </div>
+
+                        <!-- Alternative Matches -->
+                        <template if:true={matchingResult.alternatives}>
+                            <template if:true={matchingResult.alternatives.length}>
+                                <div class="slds-m-top_medium">
+                                    <h3 class="slds-text-heading_small slds-m-bottom_small">Alternative Matches</h3>
+                                    <template for:each={matchingResult.alternatives} for:item="alt">
+                                        <div key={alt.factorId} class="slds-box slds-theme_shade slds-m-bottom_small">
+                                            <dl class="slds-list_horizontal slds-wrap">
+                                                <template if:true={alt.naicsCode}>
+                                                    <dt class="slds-item_label slds-text-color_weak slds-truncate">
+                                                        NAICS Code:
+                                                    </dt>
+                                                    <dd class="slds-item_detail slds-truncate">
+                                                        {alt.naicsCode}
+                                                    </dd>
+                                                </template>
+                                                <template if:true={alt.economicSector}>
+                                                    <dt class="slds-item_label slds-text-color_weak slds-truncate">
+                                                        Economic Sector:
+                                                    </dt>
+                                                    <dd class="slds-item_detail slds-truncate">
+                                                        {alt.economicSector}
+                                                    </dd>
+                                                </template>
+                                                <template if:true={alt.emissionsFactorValue}>
+                                                    <dt class="slds-item_label slds-text-color_weak slds-truncate">
+                                                        Emissions Factor:
+                                                    </dt>
+                                                    <dd class="slds-item_detail slds-truncate">
+                                                        {alt.emissionsFactorValue} tCO2e per million USD
+                                                    </dd>
+                                                </template>
+                                            </dl>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </template>
+                    </template>
+                    
+                    <!-- No Match Found -->
+                    <template if:false={matchingResult.recommendedFactorId}>
+                        <div class="slds-box slds-theme_error">
+                            <h3 class="slds-text-heading_small slds-m-bottom_small">No Match Found</h3>
+                            <p class="slds-text-body_small">
+                                {matchingResult.errorMessage}
+                            </p>
+                            <template if:true={matchingResult.reasoning}>
+                                <div class="slds-m-top_small">
+                                    <p class="slds-text-body_small slds-text-color_weak">
+                                        {matchingResult.reasoning}
+                                    </p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>

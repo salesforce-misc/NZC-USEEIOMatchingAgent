@@ -7,10 +7,11 @@
 public class USEEIOMatchingService {
     
     /**
-     * @description Main method to match a spend item to an emissions factor
+     * @description Main method to match a spend item to an emissions factor (AuraEnabled for LWC)
      * @param scope3PcmtItemId The Scope3PcmtItem record ID to match
      * @return MatchingResult with recommended match, confidence, and alternatives
      */
+    @AuraEnabled(cacheable=false)
     public static MatchingResult matchSpendItemToFactor(Id scope3PcmtItemId) {
         MatchingResult result = new MatchingResult(scope3PcmtItemId, 'NO_MATCH');
         
@@ -293,22 +294,44 @@ public class USEEIOMatchingService {
     }
     
     /**
-     * @description Apply match from MatchingResult
+     * @description Apply match from MatchingResult (AuraEnabled for LWC)
      * @param result The MatchingResult containing match information
-     * @return Database.SaveResult
+     * @return Map with success status and error message if any
      */
-    public static Database.SaveResult applyMatch(MatchingResult result) {
+    @AuraEnabled
+    public static Map<String, Object> applyMatchFromResult(MatchingResult result) {
+        Map<String, Object> response = new Map<String, Object>();
+        
         if (result == null || result.recommendedFactorId == null) {
-            throw new MatchingException('Cannot apply match: Missing recommended factor');
+            response.put('success', false);
+            response.put('error', 'Cannot apply match: Missing recommended factor');
+            return response;
         }
         
-        return applyMatch(
-            result.scope3PcmtItemId,
-            result.recommendedFactorId,
-            result.confidenceScore,
-            result.reasoning,
-            'AI Suggested'
-        );
+        try {
+            Database.SaveResult saveResult = applyMatch(
+                result.scope3PcmtItemId,
+                result.recommendedFactorId,
+                result.confidenceScore,
+                result.reasoning,
+                'AI Suggested'
+            );
+            
+            response.put('success', saveResult.isSuccess());
+            if (!saveResult.isSuccess()) {
+                List<String> errors = new List<String>();
+                for (Database.Error err : saveResult.getErrors()) {
+                    errors.add(err.getMessage());
+                }
+                response.put('errors', errors);
+                response.put('error', String.join(errors, '; '));
+            }
+        } catch (Exception e) {
+            response.put('success', false);
+            response.put('error', e.getMessage());
+        }
+        
+        return response;
     }
     
     /**

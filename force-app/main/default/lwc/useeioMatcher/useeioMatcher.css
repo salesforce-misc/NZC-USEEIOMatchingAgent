@@ -1,0 +1,43 @@
+/* Custom styling for USEEIO Matcher component */
+
+/* Confidence badge styling */
+.slds-badge_success {
+    background-color: #04844b;
+    color: white;
+}
+
+.slds-badge_warning {
+    background-color: #fe9339;
+    color: white;
+}
+
+.slds-badge_error {
+    background-color: #c23934;
+    color: white;
+}
+
+/* Match result boxes */
+.slds-box.slds-theme_success {
+    border-left: 4px solid #04844b;
+}
+
+.slds-box.slds-theme_warning {
+    border-left: 4px solid #fe9339;
+}
+
+.slds-box.slds-theme_error {
+    border-left: 4px solid #c23934;
+}
+
+.slds-box.slds-theme_info {
+    border-left: 4px solid #0176d3;
+}
+
+/* Spacing adjustments */
+.slds-list_horizontal dt {
+    min-width: 120px;
+}
+
+.slds-list_horizontal dd {
+    min-width: 200px;
+}
