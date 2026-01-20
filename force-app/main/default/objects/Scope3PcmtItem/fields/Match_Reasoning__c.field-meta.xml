@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Match_Reasoning__c</fullName>
+    <label>Match Reasoning</label>
+    <length>32768</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>LongTextArea</type>
+    <description>Explanation of why this emissions factor was selected, including references to specific NAICS definition sections and spending category analysis.</description>
+    <inlineHelpText>AI-generated explanation of the matching decision, including which NAICS code was selected and why.</inlineHelpText>
+    <visibleLines>5</visibleLines>
+</CustomField>
