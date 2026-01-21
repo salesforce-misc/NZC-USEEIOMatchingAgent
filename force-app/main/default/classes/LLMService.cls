@@ -106,38 +106,48 @@ public class LLMService {
         String category3,
         List<String> candidateCodes
     ) {
-        // Prompt Builder template name
-        String templateName = 'NAICS_Matching_Prompt';
-        
-        // Create variables map for template substitution
-        Map<String, Object> variables = new Map<String, Object>();
-        variables.put('category1', String.isNotBlank(category1) ? category1 : '');
-        variables.put('category2', String.isNotBlank(category2) ? category2 : '');
-        variables.put('category3', String.isNotBlank(category3) ? category3 : '');
-        
-        // Add candidate codes - format as comma-separated string for the template
-        if (candidateCodes != null && !candidateCodes.isEmpty()) {
-            variables.put('candidateCodes', String.join(candidateCodes, ', '));
-        } else {
-            variables.put('candidateCodes', 'None provided');
-        }
+        // Prompt Builder template API name
+        String templateApiName = 'NAICS_Matching_Prompt';
         
         try {
-            // Create generate text request using the syntax that works in your org
-            aiplatform.ModelsAPI.createGenerations_Request request = new aiplatform.ModelsAPI.createGenerations_Request();
+            // Query the Prompt Builder template to verify it exists and get its structure
+            List<Prompt> prompts = [
+                SELECT Id, DeveloperName 
+                FROM Prompt 
+                WHERE DeveloperName = :templateApiName 
+                LIMIT 1
+            ];
             
-            // Specify model (you can change this to match your preferred model)
+            if (prompts.isEmpty()) {
+                throw new LLMServiceException('Prompt Builder template "' + templateApiName + '" not found. ' +
+                    'Please create it first in Prompt Builder (see PROMPT_BUILDER_SETUP.md). ' +
+                    'Make sure the Developer Name is exactly "' + templateApiName + '" (case-sensitive).');
+            }
+            
+            // TODO: Use Connect API to invoke the template directly
+            // The exact syntax may vary by org version. Check Prompt Builder for code examples.
+            // Expected approach:
+            // ConnectApi.EinsteinPromptTemplateGenerationsInput input = new ConnectApi.EinsteinPromptTemplateGenerationsInput();
+            // input.promptTemplateApiName = templateApiName; // or input.promptTemplate
+            // Map<String, ConnectApi.WrappedValue> inputParams = ...;
+            // ConnectApi.EinsteinPromptTemplateGenerationsRepresentation response = 
+            //     ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate(Network.getNetworkId(), input);
+            
+            // For now, using createGenerations as fallback
+            // NOTE: This doesn't actually invoke the template - it just sends a prompt
+            // The template's Knowledge Grounding won't be used with this approach
+            // We need to find the correct Connect API syntax to actually invoke the template
+            
+            aiplatform.ModelsAPI.createGenerations_Request request = new aiplatform.ModelsAPI.createGenerations_Request();
             request.modelName = 'sfdc_ai__DefaultOpenAIGPT4OmniMini';
             
-            // Create request body
             aiplatform.ModelsAPI_GenerationRequest requestBody = new aiplatform.ModelsAPI_GenerationRequest();
             
-            // Build prompt with template reference and variables
-            // Note: Prompt Builder templates are referenced by name in the prompt
-            // The template will substitute variables automatically when called
-            String promptText = buildPromptFromTemplate(templateName, variables);
-            requestBody.prompt = promptText;
+            // Build prompt with variables (matching template structure)
+            // This is a temporary workaround until we find the correct template invocation syntax
+            String promptText = buildPromptWithVariables(category1, category2, category3, candidateCodes);
             
+            requestBody.prompt = promptText;
             request.body = requestBody;
             
             // Make request
@@ -159,69 +169,61 @@ public class LLMService {
         } catch (aiplatform.ModelsAPI.createGenerations_ResponseException e) {
             throw new LLMServiceException('Models API call failed. Response code: ' + e.responseCode + '. Error: ' + e.getMessage());
         } catch (Exception e) {
-            throw new LLMServiceException('Models API call failed: ' + e.getMessage());
+            throw new LLMServiceException('Prompt Builder template call failed: ' + e.getMessage());
         }
     }
     
     /**
-     * @description Build prompt text by substituting variables into the template structure
-     * @description Since createGenerations uses direct prompts, we need to build the prompt
-     * @description with variables substituted. This matches the Prompt Builder template structure.
-     * @param templateName Name of the Prompt Builder template (for reference)
-     * @param variables Variables to substitute in the template
-     * @return Prompt text with variables substituted
+     * @description Build prompt text matching the Prompt Builder template structure
+     * @description This is used as a fallback until we can invoke the template directly via Connect API
+     * @description The prompt includes Knowledge Library references to trigger grounding
      */
-    private static String buildPromptFromTemplate(String templateName, Map<String, Object> variables) {
-        // Build the prompt with explicit Knowledge Grounding references
-        // According to current documentation, grounding is triggered by how the prompt references the Data Library
-        
+    private static String buildPromptWithVariables(
+        String category1,
+        String category2,
+        String category3,
+        List<String> candidateCodes
+    ) {
         String prompt = 'System: You are an expert in North American Industry Classification System (NAICS) 2017 codes. ';
         prompt += 'Your task is to analyze spending category descriptions from corporate procurement systems ';
         prompt += 'and identify the most appropriate 6-digit NAICS industry code.\n\n';
         
-        // Explicit Knowledge Grounding reference - this triggers automatic grounding
-        // The system will search USEEIO_Reference Data Library based on this reference
-        prompt += 'You have access to the NAICS 2017 Definition File in the Agentforce Knowledge Library. ';
-        prompt += 'The Knowledge Library contains the document "NAICS Codes 2017_Definition_File.pdf" ';
-        prompt += 'in the Data Library source named "USEEIO_Reference". ';
-        prompt += 'When analyzing spending categories, you must search this Knowledge Library for relevant NAICS code definitions.\n\n';
+        prompt += 'You have access to the NAICS 2017 Definition File in the Agentforce Knowledge Library (USEEIO_Reference). ';
+        prompt += 'When analyzing spending categories, search the Knowledge Library for relevant NAICS code definitions.\n\n';
         
         prompt += 'User: Analyze these spending categories:\n';
-        prompt += 'Category 1: ' + (String)variables.get('category1') + '\n';
-        prompt += 'Category 2: ' + (String)variables.get('category2') + '\n';
-        prompt += 'Category 3: ' + (String)variables.get('category3') + '\n\n';
+        prompt += 'Category 1: ' + (String.isNotBlank(category1) ? category1 : '') + '\n';
+        prompt += 'Category 2: ' + (String.isNotBlank(category2) ? category2 : '') + '\n';
+        prompt += 'Category 3: ' + (String.isNotBlank(category3) ? category3 : '') + '\n\n';
         
-        String candidateCodesStr = (String)variables.get('candidateCodes');
-        if (String.isNotBlank(candidateCodesStr) && candidateCodesStr != 'None provided') {
-            prompt += 'Candidate NAICS codes to consider: ' + candidateCodesStr + '\n\n';
-            prompt += 'For each candidate code, search the Knowledge Library (USEEIO_Reference) to retrieve its full definition including:\n';
-        } else {
-            prompt += 'Search the Knowledge Library (USEEIO_Reference) to find the most appropriate ';
+        String candidateCodesStr = 'None provided';
+        if (candidateCodes != null && !candidateCodes.isEmpty()) {
+            candidateCodesStr = String.join(candidateCodes, ', ');
         }
+        prompt += 'Candidate NAICS codes to consider: ' + candidateCodesStr + '\n\n';
         
+        prompt += 'Search the NAICS 2017 Definition File in the Knowledge Library to find the most appropriate ';
+        prompt += '6-digit industry code. If candidate codes are provided, focus your search on those codes first. ';
+        prompt += 'For each candidate code, retrieve its full definition including:\n';
         prompt += '- Industry description\n';
         prompt += '- Cross-references\n';
         prompt += '- Examples\n';
         prompt += '- What activities are included/excluded\n\n';
         
-        prompt += 'IMPORTANT: You must use the Knowledge Library (USEEIO_Reference) to find the NAICS 2017 Definition File. ';
-        prompt += 'Search this document for the most appropriate 6-digit industry code that matches these spending categories. ';
-        prompt += 'If candidate codes are provided, focus your search on those codes first, but verify each one against the ';
-        prompt += 'definitions in the Knowledge Library.\n\n';
-        
-        prompt += 'Analyze the spending categories against the retrieved definitions from the Knowledge Library and select the best match.\n\n';
+        prompt += 'Analyze the spending categories against the retrieved definitions and select the best match.\n\n';
         
         prompt += 'Return your response in JSON format:\n';
         prompt += '{\n';
         prompt += '  "suggestedNaicsCode": "6-digit code or null",\n';
         prompt += '  "confidence": "HIGH|MEDIUM|LOW",\n';
-        prompt += '  "reasoning": "Detailed explanation referencing specific sections from the NAICS definition in the Knowledge Library",\n';
+        prompt += '  "reasoning": "Detailed explanation referencing specific sections from the NAICS definition",\n';
         prompt += '  "alternativeNaicsCodes": ["code1", "code2"],\n';
         prompt += '  "uncertaintyFactors": ["factor1", "factor2"]\n';
         prompt += '}';
         
         return prompt;
     }
+    
     
     /**
      * @description Get model name from Custom Metadata or use default
