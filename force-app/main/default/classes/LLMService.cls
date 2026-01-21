@@ -22,11 +22,9 @@ public class LLMService {
         List<String> candidateCodes
     ) {
         try {
-            // Build prompt with Knowledge Library reference
-            String prompt = buildPrompt(category1, category2, category3, candidateCodes);
-            
-            // Call LLM via Agentforce Models API
-            String llmResponseJson = callLLMOpenConnector(prompt);
+            // Call LLM via Agentforce Models API using Prompt Builder template
+            // Pass variables directly for template substitution
+            String llmResponseJson = callLLMOpenConnector(category1, category2, category3, candidateCodes);
             
             // Parse and validate response
             return parseLLMResponse(llmResponseJson);
@@ -93,26 +91,85 @@ public class LLMService {
     }
     
     /**
-     * @description Call LLM via Agentforce Models API with Data Library grounding
+     * @description Call LLM via Agentforce Models API with Data Library grounding using Prompt Builder template
      * @description Uses Salesforce's managed models (GPT-4, Claude, etc.) with native Data Library grounding
-     * @description Data Library (USEEIO_Reference) must be indexed and configured for grounding
-     * @param prompt The prompt to send to LLM (includes Knowledge Library references)
+     * @description Data Library (USEEIO_Reference) must be indexed and configured in the Prompt Builder template
+     * @param category1 First spending category
+     * @param category2 Second spending category
+     * @param category3 Third spending category
+     * @param candidateCodes Optional candidate NAICS codes from pre-filtering
      * @return JSON response from LLM
      */
-    private static String callLLMOpenConnector(String prompt) {
-        // TODO: Implement Models API call
-        // The exact syntax depends on your org's Agentforce version
-        // See QUICK_START_LLM.md for the fastest implementation path (Prompt Builder)
-        // See IMPLEMENT_LLM_API.md for detailed options
+    private static String callLLMOpenConnector(
+        String category1,
+        String category2,
+        String category3,
+        List<String> candidateCodes
+    ) {
+        // STEP 1: Create the Prompt Builder template first (see PROMPT_BUILDER_SETUP.md)
+        // Template name: 'NAICS_Matching_Prompt'
+        // Make sure Knowledge Grounding is enabled for USEEIO_Reference
         
-        // For now, provide clear error with instructions
+        String templateName = 'NAICS_Matching_Prompt';
+        
+        // Create variables map for template substitution
+        Map<String, Object> variables = new Map<String, Object>();
+        variables.put('category1', String.isNotBlank(category1) ? category1 : '');
+        variables.put('category2', String.isNotBlank(category2) ? category2 : '');
+        variables.put('category3', String.isNotBlank(category3) ? category3 : '');
+        
+        // Add candidate codes if available
+        if (candidateCodes != null && !candidateCodes.isEmpty()) {
+            variables.put('candidateCodes', candidateCodes);
+        } else {
+            variables.put('candidateCodes', new List<String>());
+        }
+        
+        // STEP 2: Implement the Models API call
+        // The exact syntax may vary by org version. Try one of these approaches:
+        
+        // APPROACH 1: Standard Models API (uncomment and adjust if this works in your org)
+        /*
+        try {
+            aiplatform.ModelsAPI.Request request = new aiplatform.ModelsAPI.Request();
+            request.promptTemplate = templateName;
+            request.variables = variables;
+            
+            aiplatform.ModelsAPI.Response response = aiplatform.ModelsAPI.invoke(request);
+            
+            if (response != null && response.text != null) {
+                return response.text;
+            } else {
+                throw new LLMServiceException('Empty response from Models API');
+            }
+        } catch (Exception e) {
+            throw new LLMServiceException('Models API call failed: ' + e.getMessage());
+        }
+        */
+        
+        // APPROACH 2: Alternative syntax (try if Approach 1 doesn't compile)
+        /*
+        try {
+            // Some orgs may use different method names or structure
+            // Check Salesforce documentation for your org version
+            // Example: aiplatform.ModelsAPI.invokeTemplate(templateName, variables);
+            
+            throw new LLMServiceException('Please implement using the correct syntax for your org');
+        } catch (Exception e) {
+            throw new LLMServiceException('Models API call failed: ' + e.getMessage());
+        }
+        */
+        
+        // TEMPORARY: For now, throw helpful error with instructions
         throw new LLMServiceException(
-            'Models API implementation required. ' +
-            'Your Data Library (USEEIO_Reference) is indexed and ready. ' +
-            'Please implement callLLMOpenConnector() using one of these options:\n' +
-            '1. Prompt Builder Template (easiest - see QUICK_START_LLM.md)\n' +
-            '2. Direct Models API call (see IMPLEMENT_LLM_API.md)\n' +
-            'The prompt already includes Knowledge Library references for automatic grounding.'
+            'Models API implementation needed.\n\n' +
+            'STEP 1: Create Prompt Builder template (see PROMPT_BUILDER_SETUP.md):\n' +
+            '  - Name: NAICS_Matching_Prompt\n' +
+            '  - Enable Knowledge Grounding for USEEIO_Reference\n\n' +
+            'STEP 2: Uncomment and adjust APPROACH 1 or APPROACH 2 above\n' +
+            '  - Check Developer Console or Salesforce docs for exact syntax\n' +
+            '  - Verify Models API is available in your org version\n\n' +
+            'Variables prepared: ' + JSON.serialize(variables)
         );
     }
     
