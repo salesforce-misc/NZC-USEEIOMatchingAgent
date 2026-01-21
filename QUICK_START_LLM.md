@@ -25,11 +25,9 @@
    Category 2: {category2}  
    Category 3: {category3}
    
-   {!IF(candidateCodes != null && candidateCodes.size() > 0, 
-        'Focus on these candidate NAICS codes: ' + candidateCodes, 
-        '')}
+   Candidate NAICS codes to consider: {candidateCodes}
    
-   Search the Knowledge Library to find the most appropriate 6-digit NAICS code.
+   Search the Knowledge Library to find the most appropriate 6-digit NAICS code. If candidate codes are provided, focus your search on those codes first.
    
    Return JSON:
    {

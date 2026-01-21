@@ -56,11 +56,9 @@ Category 1: {category1}
 Category 2: {category2}
 Category 3: {category3}
 
-{!IF(candidateCodes != null && candidateCodes.size() > 0, 
-     'Focus your search in the Knowledge Library on these candidate NAICS codes: ' + String.join(candidateCodes, ', '), 
-     '')}
+Candidate NAICS codes to consider: {candidateCodes}
 
-Search the NAICS 2017 Definition File in the Knowledge Library to find the most appropriate 6-digit industry code. For each candidate code, retrieve its full definition including:
+Search the NAICS 2017 Definition File in the Knowledge Library to find the most appropriate 6-digit industry code. If candidate codes are provided, focus your search on those codes first. For each candidate code, retrieve its full definition including:
 - Industry description
 - Cross-references
 - Examples

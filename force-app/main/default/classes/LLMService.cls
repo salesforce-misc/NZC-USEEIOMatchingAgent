@@ -118,12 +118,13 @@ public class LLMService {
         variables.put('category2', String.isNotBlank(category2) ? category2 : '');
         variables.put('category3', String.isNotBlank(category3) ? category3 : '');
         
-        // Add candidate codes if available
-        if (candidateCodes != null && !candidateCodes.isEmpty()) {
-            variables.put('candidateCodes', candidateCodes);
-        } else {
-            variables.put('candidateCodes', new List<String>());
-        }
+            // Add candidate codes - format as comma-separated string for the template
+            // If empty, pass empty string so template handles it gracefully
+            if (candidateCodes != null && !candidateCodes.isEmpty()) {
+                variables.put('candidateCodes', String.join(candidateCodes, ', '));
+            } else {
+                variables.put('candidateCodes', 'None provided');
+            }
         
         // STEP 2: Implement the Models API call
         // The exact syntax may vary by org version. Try one of these approaches:

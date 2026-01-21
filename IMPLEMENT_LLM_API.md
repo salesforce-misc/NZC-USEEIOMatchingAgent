@@ -30,11 +30,9 @@
    Category 2: {category2}
    Category 3: {category3}
    
-   {!IF(candidateCodes != null && candidateCodes.size() > 0, 
-        'Focus your search on these candidate NAICS codes: ' + candidateCodes, 
-        '')}
+   Candidate NAICS codes to consider: {candidateCodes}
    
-   Search the NAICS 2017 Definition File in the Knowledge Library to find the most appropriate 6-digit industry code.
+   Search the NAICS 2017 Definition File in the Knowledge Library to find the most appropriate 6-digit industry code. If candidate codes are provided, focus your search on those codes first.
    
    Return your response in JSON format:
    {
