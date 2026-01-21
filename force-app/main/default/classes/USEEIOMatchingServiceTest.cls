@@ -19,7 +19,7 @@ private class USEEIOMatchingServiceTest {
         
         // Create Scope3PcmtSummary
         Scope3PcmtSummary testSummary = new Scope3PcmtSummary(
-            CalendarYear = 2024,
+            CalendarYear = '2024',
             PcmtEmssnFctrId = testFactorSet.Id
         );
         insert testSummary;

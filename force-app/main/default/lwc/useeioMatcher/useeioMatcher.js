@@ -181,6 +181,14 @@ export default class UseeioMatcher extends LightningElement {
         return this.spendingCategory1 || this.spendingCategory2 || this.spendingCategory3;
     }
     
+    get buttonDisabled() {
+        return this.isLoading || !this.hasSpendingCategories;
+    }
+    
+    get applyButtonDisabled() {
+        return this.isLoading || !this.canApplyMatch;
+    }
+    
     /**
      * Get current confidence class for existing match
      */

@@ -81,7 +81,7 @@
                     variant="brand"
                     icon-name="utility:search"
                     onclick={handleFindMatch}
-                    disabled={isLoading || !hasSpendingCategories}
+                    disabled={buttonDisabled}
                     class="slds-m-right_small">
                 </lightning-button>
                 <template if:true={showResults}>
@@ -166,7 +166,7 @@
                                     label="Apply Match" 
                                     variant="brand"
                                     onclick={handleApplyMatch}
-                                    disabled={isLoading || !canApplyMatch}>
+                                    disabled={applyButtonDisabled}>
                                 </lightning-button>
                             </div>
                         </div>
