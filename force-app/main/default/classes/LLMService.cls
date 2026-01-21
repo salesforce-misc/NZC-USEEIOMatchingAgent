@@ -172,38 +172,50 @@ public class LLMService {
      * @return Prompt text with variables substituted
      */
     private static String buildPromptFromTemplate(String templateName, Map<String, Object> variables) {
-        // Build the prompt matching the Prompt Builder template structure
-        // This replicates the template but with actual variable values
+        // Build the prompt with explicit Knowledge Grounding references
+        // According to current documentation, grounding is triggered by how the prompt references the Data Library
         
         String prompt = 'System: You are an expert in North American Industry Classification System (NAICS) 2017 codes. ';
         prompt += 'Your task is to analyze spending category descriptions from corporate procurement systems ';
         prompt += 'and identify the most appropriate 6-digit NAICS industry code.\n\n';
         
-        prompt += 'You have access to the NAICS 2017 Definition File in the Agentforce Knowledge Library (USEEIO_Reference). ';
-        prompt += 'When analyzing spending categories, search the Knowledge Library for relevant NAICS code definitions.\n\n';
+        // Explicit Knowledge Grounding reference - this triggers automatic grounding
+        // The system will search USEEIO_Reference Data Library based on this reference
+        prompt += 'You have access to the NAICS 2017 Definition File in the Agentforce Knowledge Library. ';
+        prompt += 'The Knowledge Library contains the document "NAICS Codes 2017_Definition_File.pdf" ';
+        prompt += 'in the Data Library source named "USEEIO_Reference". ';
+        prompt += 'When analyzing spending categories, you must search this Knowledge Library for relevant NAICS code definitions.\n\n';
         
         prompt += 'User: Analyze these spending categories:\n';
         prompt += 'Category 1: ' + (String)variables.get('category1') + '\n';
         prompt += 'Category 2: ' + (String)variables.get('category2') + '\n';
         prompt += 'Category 3: ' + (String)variables.get('category3') + '\n\n';
         
-        prompt += 'Candidate NAICS codes to consider: ' + (String)variables.get('candidateCodes') + '\n\n';
+        String candidateCodesStr = (String)variables.get('candidateCodes');
+        if (String.isNotBlank(candidateCodesStr) && candidateCodesStr != 'None provided') {
+            prompt += 'Candidate NAICS codes to consider: ' + candidateCodesStr + '\n\n';
+            prompt += 'For each candidate code, search the Knowledge Library (USEEIO_Reference) to retrieve its full definition including:\n';
+        } else {
+            prompt += 'Search the Knowledge Library (USEEIO_Reference) to find the most appropriate ';
+        }
         
-        prompt += 'Search the NAICS 2017 Definition File in the Knowledge Library to find the most appropriate ';
-        prompt += '6-digit industry code. If candidate codes are provided, focus your search on those codes first. ';
-        prompt += 'For each candidate code, retrieve its full definition including:\n';
         prompt += '- Industry description\n';
         prompt += '- Cross-references\n';
         prompt += '- Examples\n';
         prompt += '- What activities are included/excluded\n\n';
         
-        prompt += 'Analyze the spending categories against the retrieved definitions and select the best match.\n\n';
+        prompt += 'IMPORTANT: You must use the Knowledge Library (USEEIO_Reference) to find the NAICS 2017 Definition File. ';
+        prompt += 'Search this document for the most appropriate 6-digit industry code that matches these spending categories. ';
+        prompt += 'If candidate codes are provided, focus your search on those codes first, but verify each one against the ';
+        prompt += 'definitions in the Knowledge Library.\n\n';
+        
+        prompt += 'Analyze the spending categories against the retrieved definitions from the Knowledge Library and select the best match.\n\n';
         
         prompt += 'Return your response in JSON format:\n';
         prompt += '{\n';
         prompt += '  "suggestedNaicsCode": "6-digit code or null",\n';
         prompt += '  "confidence": "HIGH|MEDIUM|LOW",\n';
-        prompt += '  "reasoning": "Detailed explanation referencing specific sections from the NAICS definition",\n';
+        prompt += '  "reasoning": "Detailed explanation referencing specific sections from the NAICS definition in the Knowledge Library",\n';
         prompt += '  "alternativeNaicsCodes": ["code1", "code2"],\n';
         prompt += '  "uncertaintyFactors": ["factor1", "factor2"]\n';
         prompt += '}';
