@@ -96,42 +96,23 @@ public class LLMService {
      * @description Call LLM via Agentforce Models API with Data Library grounding
      * @description Uses Salesforce's managed models (GPT-4, Claude, etc.) with native Data Library grounding
      * @description Data Library (USEEIO_Reference) must be indexed and configured for grounding
-     * @param prompt The prompt to send to LLM
+     * @param prompt The prompt to send to LLM (includes Knowledge Library references)
      * @return JSON response from LLM
      */
     private static String callLLMOpenConnector(String prompt) {
-        // TODO: Implement Agentforce Models API call
-        // The exact API syntax depends on your org's Agentforce version
-        // See LLM_INTEGRATION_SETUP_SIMPLIFIED.md for implementation options
+        // TODO: Implement Models API call
+        // The exact syntax depends on your org's Agentforce version
+        // See QUICK_START_LLM.md for the fastest implementation path (Prompt Builder)
+        // See IMPLEMENT_LLM_API.md for detailed options
         
-        // Option 1: Use Prompt Builder Template (Recommended)
-        // 1. Create a Prompt Template in Prompt Builder with Knowledge Grounding enabled
-        // 2. Reference your Data Library (USEEIO_Reference) in the template
-        // 3. Use the template name here:
-        /*
-        try {
-            String templateName = 'NAICS_Matching_Prompt'; // Your prompt template name
-            Map<String, Object> variables = new Map<String, Object>();
-            // Add variables as needed
-            
-            // Call via Models API (exact syntax may vary)
-            // aiplatform.ModelsAPI.Response response = aiplatform.ModelsAPI.invokeTemplate(templateName, variables);
-            // return response.text;
-        } catch (Exception e) {
-            throw new LLMServiceException('Prompt template call failed: ' + e.getMessage());
-        }
-        */
-        
-        // Option 2: Direct Models API call (if available in your org)
-        // Refer to: https://developer.salesforce.com/docs/ai/agentforce/guide/models-api.html
-        // The prompt already includes Knowledge Library references, so grounding should work automatically
-        
-        // For now, throw exception with instructions
+        // For now, provide clear error with instructions
         throw new LLMServiceException(
-            'LLM API integration required. ' +
-            'Please implement callLLMOpenConnector() method using Agentforce Models API. ' +
-            'See LLM_INTEGRATION_SETUP_SIMPLIFIED.md for step-by-step instructions. ' +
-            'Your Data Library (USEEIO_Reference) is indexed and ready to use.'
+            'Models API implementation required. ' +
+            'Your Data Library (USEEIO_Reference) is indexed and ready. ' +
+            'Please implement callLLMOpenConnector() using one of these options:\n' +
+            '1. Prompt Builder Template (easiest - see QUICK_START_LLM.md)\n' +
+            '2. Direct Models API call (see IMPLEMENT_LLM_API.md)\n' +
+            'The prompt already includes Knowledge Library references for automatic grounding.'
         );
     }
     
