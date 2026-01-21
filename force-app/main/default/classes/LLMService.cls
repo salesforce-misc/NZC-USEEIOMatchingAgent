@@ -106,10 +106,7 @@ public class LLMService {
         String category3,
         List<String> candidateCodes
     ) {
-        // STEP 1: Create the Prompt Builder template first (see PROMPT_BUILDER_SETUP.md)
-        // Template name: 'NAICS_Matching_Prompt'
-        // Make sure Knowledge Grounding is enabled for USEEIO_Reference
-        
+        // Prompt Builder template name
         String templateName = 'NAICS_Matching_Prompt';
         
         // Create variables map for template substitution
@@ -118,60 +115,100 @@ public class LLMService {
         variables.put('category2', String.isNotBlank(category2) ? category2 : '');
         variables.put('category3', String.isNotBlank(category3) ? category3 : '');
         
-            // Add candidate codes - format as comma-separated string for the template
-            // If empty, pass empty string so template handles it gracefully
-            if (candidateCodes != null && !candidateCodes.isEmpty()) {
-                variables.put('candidateCodes', String.join(candidateCodes, ', '));
-            } else {
-                variables.put('candidateCodes', 'None provided');
-            }
+        // Add candidate codes - format as comma-separated string for the template
+        if (candidateCodes != null && !candidateCodes.isEmpty()) {
+            variables.put('candidateCodes', String.join(candidateCodes, ', '));
+        } else {
+            variables.put('candidateCodes', 'None provided');
+        }
         
-        // STEP 2: Implement the Models API call
-        // The exact syntax may vary by org version. Try one of these approaches:
-        
-        // APPROACH 1: Standard Models API (uncomment and adjust if this works in your org)
-        /*
         try {
-            aiplatform.ModelsAPI.Request request = new aiplatform.ModelsAPI.Request();
-            request.promptTemplate = templateName;
-            request.variables = variables;
+            // Create generate text request using the syntax that works in your org
+            aiplatform.ModelsAPI.createGenerations_Request request = new aiplatform.ModelsAPI.createGenerations_Request();
             
-            aiplatform.ModelsAPI.Response response = aiplatform.ModelsAPI.invoke(request);
+            // Specify model (you can change this to match your preferred model)
+            request.modelName = 'sfdc_ai__DefaultOpenAIGPT4OmniMini';
             
-            if (response != null && response.text != null) {
-                return response.text;
+            // Create request body
+            aiplatform.ModelsAPI_GenerationRequest requestBody = new aiplatform.ModelsAPI_GenerationRequest();
+            
+            // Build prompt with template reference and variables
+            // Note: Prompt Builder templates are referenced by name in the prompt
+            // The template will substitute variables automatically when called
+            String promptText = buildPromptFromTemplate(templateName, variables);
+            requestBody.prompt = promptText;
+            
+            request.body = requestBody;
+            
+            // Make request
+            aiplatform.ModelsAPI modelsAPI = new aiplatform.ModelsAPI();
+            aiplatform.ModelsAPI.createGenerations_Response response = modelsAPI.createGenerations(request);
+            
+            // Extract response text
+            if (response != null && response.Code200 != null && response.Code200.generation != null) {
+                String generatedText = response.Code200.generation.generatedText;
+                if (String.isNotBlank(generatedText)) {
+                    return generatedText;
+                } else {
+                    throw new LLMServiceException('Empty response from Models API');
+                }
             } else {
-                throw new LLMServiceException('Empty response from Models API');
+                throw new LLMServiceException('Invalid response structure from Models API');
             }
+            
+        } catch (aiplatform.ModelsAPI.createGenerations_ResponseException e) {
+            throw new LLMServiceException('Models API call failed. Response code: ' + e.responseCode + '. Error: ' + e.getMessage());
         } catch (Exception e) {
             throw new LLMServiceException('Models API call failed: ' + e.getMessage());
         }
-        */
+    }
+    
+    /**
+     * @description Build prompt text by substituting variables into the template structure
+     * @description Since createGenerations uses direct prompts, we need to build the prompt
+     * @description with variables substituted. This matches the Prompt Builder template structure.
+     * @param templateName Name of the Prompt Builder template (for reference)
+     * @param variables Variables to substitute in the template
+     * @return Prompt text with variables substituted
+     */
+    private static String buildPromptFromTemplate(String templateName, Map<String, Object> variables) {
+        // Build the prompt matching the Prompt Builder template structure
+        // This replicates the template but with actual variable values
         
-        // APPROACH 2: Alternative syntax (try if Approach 1 doesn't compile)
-        /*
-        try {
-            // Some orgs may use different method names or structure
-            // Check Salesforce documentation for your org version
-            // Example: aiplatform.ModelsAPI.invokeTemplate(templateName, variables);
-            
-            throw new LLMServiceException('Please implement using the correct syntax for your org');
-        } catch (Exception e) {
-            throw new LLMServiceException('Models API call failed: ' + e.getMessage());
-        }
-        */
+        String prompt = 'System: You are an expert in North American Industry Classification System (NAICS) 2017 codes. ';
+        prompt += 'Your task is to analyze spending category descriptions from corporate procurement systems ';
+        prompt += 'and identify the most appropriate 6-digit NAICS industry code.\n\n';
         
-        // TEMPORARY: For now, throw helpful error with instructions
-        throw new LLMServiceException(
-            'Models API implementation needed.\n\n' +
-            'STEP 1: Create Prompt Builder template (see PROMPT_BUILDER_SETUP.md):\n' +
-            '  - Name: NAICS_Matching_Prompt\n' +
-            '  - Enable Knowledge Grounding for USEEIO_Reference\n\n' +
-            'STEP 2: Uncomment and adjust APPROACH 1 or APPROACH 2 above\n' +
-            '  - Check Developer Console or Salesforce docs for exact syntax\n' +
-            '  - Verify Models API is available in your org version\n\n' +
-            'Variables prepared: ' + JSON.serialize(variables)
-        );
+        prompt += 'You have access to the NAICS 2017 Definition File in the Agentforce Knowledge Library (USEEIO_Reference). ';
+        prompt += 'When analyzing spending categories, search the Knowledge Library for relevant NAICS code definitions.\n\n';
+        
+        prompt += 'User: Analyze these spending categories:\n';
+        prompt += 'Category 1: ' + (String)variables.get('category1') + '\n';
+        prompt += 'Category 2: ' + (String)variables.get('category2') + '\n';
+        prompt += 'Category 3: ' + (String)variables.get('category3') + '\n\n';
+        
+        prompt += 'Candidate NAICS codes to consider: ' + (String)variables.get('candidateCodes') + '\n\n';
+        
+        prompt += 'Search the NAICS 2017 Definition File in the Knowledge Library to find the most appropriate ';
+        prompt += '6-digit industry code. If candidate codes are provided, focus your search on those codes first. ';
+        prompt += 'For each candidate code, retrieve its full definition including:\n';
+        prompt += '- Industry description\n';
+        prompt += '- Cross-references\n';
+        prompt += '- Examples\n';
+        prompt += '- What activities are included/excluded\n\n';
+        
+        prompt += 'Analyze the spending categories against the retrieved definitions and select the best match.\n\n';
+        
+        prompt += 'Return your response in JSON format:\n';
+        prompt += '{\n';
+        prompt += '  "suggestedNaicsCode": "6-digit code or null",\n';
+        prompt += '  "confidence": "HIGH|MEDIUM|LOW",\n';
+        prompt += '  "reasoning": "Detailed explanation referencing specific sections from the NAICS definition",\n';
+        prompt += '  "alternativeNaicsCodes": ["code1", "code2"],\n';
+        prompt += '  "uncertaintyFactors": ["factor1", "factor2"]\n';
+        prompt += '}';
+        
+        return prompt;
     }
     
     /**
