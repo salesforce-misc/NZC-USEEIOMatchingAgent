@@ -24,7 +24,7 @@
                 <template if:true={matchingStatus}>
                     <template if:true={matchingStatus.inProgress}>
                         <div class="slds-m-top_small">
-                            <div class="slds-progress-bar slds-progress-bar_circular" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progressPercentage}>
+                            <div class="slds-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progressPercentage}>
                                 <span class="slds-progress-bar__value" style={progressBarStyle}>
                                     <span class="slds-assistive-text">{progressPercentage}% complete</span>
                                 </span>
