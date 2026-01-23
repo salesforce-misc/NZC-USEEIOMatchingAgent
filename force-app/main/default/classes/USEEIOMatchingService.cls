@@ -1,6 +1,7 @@
 /**
  * @description Main service for matching Scope3PcmtItem records to PcmtEmssnFctrSetItem emissions factors
- * @description Uses AI-powered NAICS code matching with Agentforce Knowledge Library grounding
+ * @description Uses AI-powered NAICS code matching with Agentforce Models API
+ * @description Implements Response Caching to reduce LLM API costs by storing responses in LLM_Response_Cache__c
  * @author Your Name
  * @date 2025-01-XX
  */
@@ -203,14 +204,57 @@ public class USEEIOMatchingService {
                 }
             }
             
-            // Step 5: Stage 2 - Call LLM service
-            LLMService.LLMResponse llmResponse = LLMService.suggestNaicsCode(
-                item.SpendingCategory1,
-                item.SpendingCategory2,
-                item.SpendingCategory3,
-                candidateCodes,
-                candidateCodeDescriptions
-            );
+            // Step 5: Stage 2 - Check Response Cache first, then call LLM if needed
+            LLMService.LLMResponse llmResponse = null;
+            Boolean fromCache = false;
+            
+            try {
+                // Check cache before calling LLM
+                llmResponse = LLMResponseCache.getCachedResponse(
+                    item.SpendingCategory1,
+                    item.SpendingCategory2,
+                    item.SpendingCategory3,
+                    pcmtEmssnFctrSetId
+                );
+                
+                if (llmResponse != null) {
+                    fromCache = true;
+                    System.debug('Cache hit for item: ' + item.Id);
+                }
+            } catch (Exception cacheEx) {
+                // If cache lookup fails, log but continue with LLM call
+                System.debug('Cache lookup failed (continuing with LLM call): ' + cacheEx.getMessage());
+            }
+            
+            // If not found in cache, call LLM service
+            if (llmResponse == null) {
+                System.debug('Cache miss - calling LLM for item: ' + item.Id);
+                llmResponse = LLMService.suggestNaicsCode(
+                    item.SpendingCategory1,
+                    item.SpendingCategory2,
+                    item.SpendingCategory3,
+                    candidateCodes,
+                    candidateCodeDescriptions
+                );
+                
+                // Save to cache if LLM call was successful
+                if (llmResponse != null && String.isNotBlank(llmResponse.suggestedNaicsCode) && 
+                    String.isBlank(llmResponse.errorMessage)) {
+                    try {
+                        LLMResponseCache.saveResponse(
+                            item.SpendingCategory1,
+                            item.SpendingCategory2,
+                            item.SpendingCategory3,
+                            pcmtEmssnFctrSetId,
+                            llmResponse
+                        );
+                        System.debug('Saved LLM response to cache for item: ' + item.Id);
+                    } catch (Exception saveEx) {
+                        // If cache save fails, log but continue processing
+                        System.debug('Cache save failed (continuing processing): ' + saveEx.getMessage());
+                    }
+                }
+            }
             
             if (String.isNotBlank(llmResponse.errorMessage)) {
                 result.errorMessage = llmResponse.errorMessage;
