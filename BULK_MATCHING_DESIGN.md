@@ -311,16 +311,37 @@ public static List<Scope3PcmtItem> getItemsNeedingReview(Id scope3PcmtSummaryId)
 
 ## Next Steps
 
-1. **Create Custom Fields** on `Scope3PcmtSummary` for status tracking
-2. **Create Queueable Class** (`BulkMatchingQueueable`)
-3. **Create Batch Apex Class** (`BulkMatchingBatch`)
-4. **Create LWC** (`bulkMatchingSummary`) for `Scope3PcmtSummary`
-5. **Create Apex Methods** for LWC integration
-6. **Add Unit Tests** for all classes
-7. **Test with small batch** (10-50 items)
-8. **Test with medium batch** (100-500 items)
-9. **Monitor costs** and optimize further
-10. **Deploy to production**
+1. **Create Custom Object** `LLM_Response_Cache__c` for response caching
+2. **Create Custom Fields** on `Scope3PcmtSummary` for status tracking (including cache/deduplication stats)
+3. **Create LLMResponseCache Service Class** ✅ (Already created)
+4. **Update USEEIOMatchingService** to use Response Caching
+5. **Create Queueable Class** (`BulkMatchingQueueable`)
+6. **Create Batch Apex Class** (`BulkMatchingBatch`) with deduplication logic
+7. **Create LWC** (`bulkMatchingSummary`) for `Scope3PcmtSummary`
+8. **Create Apex Methods** for LWC integration
+9. **Add Unit Tests** for all classes (including cache and deduplication)
+10. **Test with small batch** (10-50 items) - verify caching and deduplication work
+11. **Test with medium batch** (100-500 items) - measure cost savings
+12. **Monitor costs** and optimize further
+13. **Deploy to production**
+
+## Implementation Priority for Cost Optimization
+
+### Phase 1: Core Functionality + Quick Wins
+1. ✅ Response Caching (LLMResponseCache class + custom object)
+2. ✅ Deduplication (built into BulkMatchingBatch)
+3. Skip already matched items
+4. Skip items without categories
+
+### Phase 2: Additional Optimizations
+5. Confidence threshold for auto-apply
+6. Candidate code pre-filtering
+7. Batch processing limits
+
+### Phase 3: Advanced (Future)
+8. Batch LLM calls (multiple items per call)
+9. Rule-based matching
+10. Historical learning
 
 ## Alternative: Simplified Approach (If Batch Apex Too Complex)
 
