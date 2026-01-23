@@ -43,6 +43,15 @@ public class BulkMatchingStatus {
     @AuraEnabled
     public Decimal costSaved { get; set; }
     
+    @AuraEnabled
+    public Integer pendingReview { get; set; }
+    
+    @AuraEnabled
+    public Integer reviewed { get; set; }
+    
+    @AuraEnabled
+    public Integer skipped { get; set; }
+    
     /**
      * @description Default constructor
      */
@@ -57,6 +66,9 @@ public class BulkMatchingStatus {
         this.deduplicated = 0;
         this.llmCalls = 0;
         this.costSaved = 0.0;
+        this.pendingReview = 0;
+        this.reviewed = 0;
+        this.skipped = 0;
     }
     
     /**

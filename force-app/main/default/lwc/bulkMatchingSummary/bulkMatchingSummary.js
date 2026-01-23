@@ -6,6 +6,8 @@ import { refreshApex } from '@salesforce/apex';
 import startBulkMatching from '@salesforce/apex/USEEIOMatchingService.startBulkMatching';
 import getMatchingStatus from '@salesforce/apex/USEEIOMatchingService.getMatchingStatus';
 import getItemsNeedingReview from '@salesforce/apex/USEEIOMatchingService.getItemsNeedingReview';
+import markItemAsReviewed from '@salesforce/apex/USEEIOMatchingService.markItemAsReviewed';
+import markItemsAsReviewed from '@salesforce/apex/USEEIOMatchingService.markItemsAsReviewed';
 
 // Field references for Scope3PcmtSummary
 import BULK_MATCHING_STATUS_FIELD from '@salesforce/schema/Scope3PcmtSummary.Bulk_Matching_Status__c';
@@ -120,6 +122,29 @@ export default class BulkMatchingSummary extends LightningElement {
     
     get hasItemsNeedingReview() {
         return this.itemsNeedingReview && this.itemsNeedingReview.length > 0;
+    }
+    
+    get reviewProgressPercentage() {
+        if (this.matchingStatus && this.matchingStatus.needsReviewItems > 0) {
+            const reviewed = this.matchingStatus.reviewed || 0;
+            const total = this.matchingStatus.needsReviewItems;
+            return Math.round((reviewed / total) * 100);
+        }
+        return 0;
+    }
+    
+    get hasSelectedRows() {
+        return this.selectedRows && this.selectedRows.length > 0;
+    }
+    
+    get reviewProgressText() {
+        if (this.matchingStatus) {
+            const pending = this.matchingStatus.pendingReview || 0;
+            const reviewed = this.matchingStatus.reviewed || 0;
+            const skipped = this.matchingStatus.skipped || 0;
+            return `${reviewed} reviewed, ${skipped} skipped, ${pending} pending`;
+        }
+        return '0 reviewed, 0 skipped, 0 pending';
     }
     
     get costSavedFormatted() {

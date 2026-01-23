@@ -684,23 +684,25 @@ public class USEEIOMatchingService {
     
     /**
      * @description Get items that need manual review (low confidence or no match)
+     * Only returns items with Review_Status__c = 'Pending Review' or null
      * @param scope3PcmtSummaryId Scope3PcmtSummary record ID
      * @return List of Scope3PcmtItem records needing review
      */
     @AuraEnabled(cacheable=true)
     public static List<Scope3PcmtItem> getItemsNeedingReview(Id scope3PcmtSummaryId) {
         try {
-            // Get items with no match or low confidence
+            // Get items with no match or low confidence that haven't been reviewed yet
             List<Scope3PcmtItem> items = [
                 SELECT Id, Name, SpendingCategory1, SpendingCategory2, SpendingCategory3,
                        PcmtEmssnFctrSetItemId, Match_Confidence_Score__c, Match_Reasoning__c,
-                       Match_Source__c
+                       Match_Source__c, Review_Status__c
                 FROM Scope3PcmtItem
                 WHERE ProcurementSummaryId = :scope3PcmtSummaryId
                 AND (
                     PcmtEmssnFctrSetItemId = null
                     OR Match_Confidence_Score__c < 0.7
                 )
+                AND (Review_Status__c = 'Pending Review' OR Review_Status__c = null)
                 ORDER BY Match_Confidence_Score__c DESC NULLS LAST, Name
                 LIMIT 1000
             ];
@@ -711,5 +713,183 @@ public class USEEIOMatchingService {
             System.debug('Error getting items needing review: ' + e.getMessage());
             return new List<Scope3PcmtItem>();
         }
+    }
+    
+    /**
+     * @description Mark an item as reviewed
+     * @param itemId Scope3PcmtItem record ID
+     * @param reviewStatus 'Reviewed' or 'Skipped'
+     * @return Map with success status
+     */
+    @AuraEnabled(cacheable=false)
+    public static Map<String, Object> markItemAsReviewed(Id itemId, String reviewStatus) {
+        Map<String, Object> response = new Map<String, Object>();
+        
+        try {
+            if (itemId == null) {
+                response.put('success', false);
+                response.put('error', 'Item ID is required');
+                return response;
+            }
+            
+            if (reviewStatus != 'Reviewed' && reviewStatus != 'Skipped') {
+                response.put('success', false);
+                response.put('error', 'Review status must be "Reviewed" or "Skipped"');
+                return response;
+            }
+            
+            Scope3PcmtItem item = new Scope3PcmtItem(
+                Id = itemId,
+                Review_Status__c = reviewStatus
+            );
+            
+            Database.SaveResult saveResult = Database.update(item, false);
+            
+            response.put('success', saveResult.isSuccess());
+            if (!saveResult.isSuccess()) {
+                List<String> errors = new List<String>();
+                for (Database.Error err : saveResult.getErrors()) {
+                    errors.add(err.getMessage());
+                }
+                response.put('errors', errors);
+                response.put('error', String.join(errors, '; '));
+            }
+            
+        } catch (Exception e) {
+            response.put('success', false);
+            response.put('error', 'Failed to mark item as reviewed: ' + e.getMessage());
+            System.debug('Error marking item as reviewed: ' + e.getMessage());
+        }
+        
+        return response;
+    }
+    
+    /**
+     * @description Mark multiple items as reviewed (bulk operation)
+     * @param itemIds List of Scope3PcmtItem record IDs
+     * @param reviewStatus 'Reviewed' or 'Skipped'
+     * @return Map with success status and results
+     */
+    @AuraEnabled(cacheable=false)
+    public static Map<String, Object> markItemsAsReviewed(List<Id> itemIds, String reviewStatus) {
+        Map<String, Object> response = new Map<String, Object>();
+        
+        try {
+            if (itemIds == null || itemIds.isEmpty()) {
+                response.put('success', false);
+                response.put('error', 'Item IDs are required');
+                return response;
+            }
+            
+            if (reviewStatus != 'Reviewed' && reviewStatus != 'Skipped') {
+                response.put('success', false);
+                response.put('error', 'Review status must be "Reviewed" or "Skipped"');
+                return response;
+            }
+            
+            List<Scope3PcmtItem> itemsToUpdate = new List<Scope3PcmtItem>();
+            for (Id itemId : itemIds) {
+                itemsToUpdate.add(new Scope3PcmtItem(
+                    Id = itemId,
+                    Review_Status__c = reviewStatus
+                ));
+            }
+            
+            List<Database.SaveResult> saveResults = Database.update(itemsToUpdate, false);
+            
+            Integer successCount = 0;
+            Integer failureCount = 0;
+            List<String> errors = new List<String>();
+            
+            for (Database.SaveResult saveResult : saveResults) {
+                if (saveResult.isSuccess()) {
+                    successCount++;
+                } else {
+                    failureCount++;
+                    for (Database.Error err : saveResult.getErrors()) {
+                        errors.add(err.getMessage());
+                    }
+                }
+            }
+            
+            response.put('success', failureCount == 0);
+            response.put('successCount', successCount);
+            response.put('failureCount', failureCount);
+            if (!errors.isEmpty()) {
+                response.put('errors', errors);
+            }
+            
+        } catch (Exception e) {
+            response.put('success', false);
+            response.put('error', 'Failed to mark items as reviewed: ' + e.getMessage());
+            System.debug('Error marking items as reviewed: ' + e.getMessage());
+        }
+        
+        return response;
+    }
+    
+    /**
+     * @description Get review statistics for a Scope3PcmtSummary
+     * @param scope3PcmtSummaryId Scope3PcmtSummary record ID
+     * @return Map with review statistics
+     */
+    @AuraEnabled(cacheable=true)
+    public static Map<String, Integer> getReviewStatistics(Id scope3PcmtSummaryId) {
+        Map<String, Integer> stats = new Map<String, Integer>();
+        
+        try {
+            // Count items needing review (no match or low confidence)
+            Integer totalNeedingReview = [
+                SELECT COUNT()
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :scope3PcmtSummaryId
+                AND (
+                    PcmtEmssnFctrSetItemId = null
+                    OR Match_Confidence_Score__c < 0.7
+                )
+            ];
+            
+            // Count pending review
+            Integer pendingReview = [
+                SELECT COUNT()
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :scope3PcmtSummaryId
+                AND (
+                    PcmtEmssnFctrSetItemId = null
+                    OR Match_Confidence_Score__c < 0.7
+                )
+                AND (Review_Status__c = 'Pending Review' OR Review_Status__c = null)
+            ];
+            
+            // Count reviewed
+            Integer reviewed = [
+                SELECT COUNT()
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :scope3PcmtSummaryId
+                AND Review_Status__c = 'Reviewed'
+            ];
+            
+            // Count skipped
+            Integer skipped = [
+                SELECT COUNT()
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :scope3PcmtSummaryId
+                AND Review_Status__c = 'Skipped'
+            ];
+            
+            stats.put('totalNeedingReview', totalNeedingReview);
+            stats.put('pendingReview', pendingReview);
+            stats.put('reviewed', reviewed);
+            stats.put('skipped', skipped);
+            
+        } catch (Exception e) {
+            System.debug('Error getting review statistics: ' + e.getMessage());
+            stats.put('totalNeedingReview', 0);
+            stats.put('pendingReview', 0);
+            stats.put('reviewed', 0);
+            stats.put('skipped', 0);
+        }
+        
+        return stats;
     }
 }

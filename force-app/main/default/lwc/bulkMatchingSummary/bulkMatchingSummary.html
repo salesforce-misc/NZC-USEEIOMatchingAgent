@@ -95,15 +95,60 @@
                 </div>
             </template>
             
+            <!-- Review Progress Section -->
+            <template if:true={matchingStatus}>
+                <template if:true={matchingStatus.complete}>
+                    <template if:true={matchingStatus.needsReviewItems}>
+                        <div class="slds-box slds-theme_shade slds-m-top_medium slds-m-bottom_medium">
+                            <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                                <div>
+                                    <h3 class="slds-text-heading_small slds-m-bottom_x-small">Review Progress</h3>
+                                    <p class="slds-text-body_small">{reviewProgressText}</p>
+                                </div>
+                                <div>
+                                    <span class="slds-text-heading_medium">{reviewProgressPercentage}%</span>
+                                    <span class="slds-text-body_small slds-m-left_x-small slds-text-color_weak">Complete</span>
+                                </div>
+                            </div>
+                            <div class="slds-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={reviewProgressPercentage}>
+                                <span class="slds-progress-bar__value" style={reviewProgressBarStyle}>
+                                    <span class="slds-assistive-text">{reviewProgressPercentage}% reviewed</span>
+                                </span>
+                            </div>
+                        </div>
+                    </template>
+                </template>
+            </template>
+            
             <!-- Items Needing Review -->
             <template if:true={hasItemsNeedingReview}>
                 <div class="slds-m-top_medium">
-                    <h3 class="slds-text-heading_small slds-m-bottom_small">Items Needing Review</h3>
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <h3 class="slds-text-heading_small">Items Needing Review</h3>
+                        <div>
+                            <lightning-button
+                                label="Mark Selected as Reviewed"
+                                variant="brand"
+                                icon-name="utility:check"
+                                onclick={handleMarkAsReviewed}
+                                disabled={!hasSelectedRows || isLoading}
+                                class="slds-m-right_x-small">
+                            </lightning-button>
+                            <lightning-button
+                                label="Skip Selected"
+                                variant="neutral"
+                                icon-name="utility:forward"
+                                onclick={handleMarkAsSkipped}
+                                disabled={!hasSelectedRows || isLoading}>
+                            </lightning-button>
+                        </div>
+                    </div>
                     <lightning-datatable
                         key-field="Id"
                         data={itemsNeedingReview}
                         columns={reviewTableColumns}
-                        hide-checkbox-column>
+                        onrowselection={handleRowSelection}
+                        selected-rows={selectedRows}>
                     </lightning-datatable>
                 </div>
             </template>
