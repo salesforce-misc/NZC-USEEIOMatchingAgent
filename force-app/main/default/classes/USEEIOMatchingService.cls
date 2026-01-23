@@ -311,159 +311,29 @@ public class USEEIOMatchingService {
      */
     @AuraEnabled(cacheable=false)
     public static MatchingResult matchSpendItemToFactor(Id scope3PcmtItemId) {
-        MatchingResult result = new MatchingResult(scope3PcmtItemId, 'NO_MATCH');
+        // Query the item and summary, then call internal method
+        Scope3PcmtItem item = [
+            SELECT Id, SpendingCategory1, SpendingCategory2, SpendingCategory3,
+                   ProcurementSummaryId, PcmtEmssnFctrSetItemId
+            FROM Scope3PcmtItem
+            WHERE Id = :scope3PcmtItemId
+            LIMIT 1
+        ];
         
-        try {
-            // Step 1: Query Scope3PcmtItem with spending categories and parent relationship
-            Scope3PcmtItem item = [
-                SELECT Id, SpendingCategory1, SpendingCategory2, SpendingCategory3,
-                       ProcurementSummaryId, PcmtEmssnFctrSetItemId
-                FROM Scope3PcmtItem
-                WHERE Id = :scope3PcmtItemId
-                LIMIT 1
-            ];
-            
-            // Step 2: Get PcmtEmssnFctrId from parent Scope3PcmtSummary (required for validation)
-            if (item.ProcurementSummaryId == null) {
-                result.errorMessage = 'Scope3PcmtItem must have a Procurement Summary';
-                result.status = 'NO_MATCH';
-                return result;
-            }
-            
-            Scope3PcmtSummary summary = [
+        Scope3PcmtSummary summary = null;
+        if (item.ProcurementSummaryId != null) {
+            List<Scope3PcmtSummary> summaries = [
                 SELECT Id, PcmtEmssnFctrId
                 FROM Scope3PcmtSummary
                 WHERE Id = :item.ProcurementSummaryId
                 LIMIT 1
             ];
-            
-            if (summary.PcmtEmssnFctrId == null) {
-                result.errorMessage = 'Procurement Summary must have a Procurement Emissions Factor Set';
-                result.status = 'NO_MATCH';
-                return result;
+            if (!summaries.isEmpty()) {
+                summary = summaries[0];
             }
-            
-            Id pcmtEmssnFctrSetId = summary.PcmtEmssnFctrId;
-            
-            // Step 3: Extract and normalize spending categories
-            String normalizedCategories = analyzeSpendingCategories(
-                item.SpendingCategory1,
-                item.SpendingCategory2,
-                item.SpendingCategory3
-            );
-            
-            if (String.isBlank(normalizedCategories)) {
-                result.errorMessage = 'No spending categories provided';
-                result.status = 'NO_MATCH';
-                return result;
-            }
-            
-            // Step 4: Stage 1 - Keyword-based pre-filtering to get candidate NAICS codes
-            List<String> candidateCodes = KeywordMatchingService.findCandidateNaicsCodes(
-                item.SpendingCategory1,
-                item.SpendingCategory2,
-                item.SpendingCategory3,
-                50 // Top 50 candidates
-            );
-            
-            // Step 5: Stage 2 - Call LLM service with Knowledge Library grounding
-            LLMService.LLMResponse llmResponse = LLMService.suggestNaicsCode(
-                item.SpendingCategory1,
-                item.SpendingCategory2,
-                item.SpendingCategory3,
-                candidateCodes
-            );
-            
-            if (String.isNotBlank(llmResponse.errorMessage)) {
-                result.errorMessage = llmResponse.errorMessage;
-                result.status = 'NO_MATCH';
-                return result;
-            }
-            
-            if (String.isBlank(llmResponse.suggestedNaicsCode)) {
-                result.errorMessage = 'LLM did not suggest a NAICS code';
-                result.status = 'NO_MATCH';
-                return result;
-            }
-            
-            // Validate NAICS code format
-            if (!LLMService.validateNaicsCode(llmResponse.suggestedNaicsCode)) {
-                result.errorMessage = 'Invalid NAICS code format: ' + llmResponse.suggestedNaicsCode;
-                result.status = 'NO_MATCH';
-                return result;
-            }
-            
-            // Step 6: Stage 3 - Find matching PcmtEmssnFctrSetItem records
-            List<PcmtEmssnFctrSetItem> matchingFactors = findMatchingFactors(
-                llmResponse.suggestedNaicsCode,
-                pcmtEmssnFctrSetId
-            );
-            
-            if (matchingFactors.isEmpty()) {
-                result.errorMessage = 'No matching emissions factor found for NAICS code: ' + llmResponse.suggestedNaicsCode;
-                result.status = 'NO_MATCH';
-                result.reasoning = llmResponse.reasoning;
-                return result;
-            }
-            
-            // Step 7: Calculate confidence score
-            Decimal confidenceScore = calculateConfidenceScore(
-                llmResponse.suggestedNaicsCode,
-                matchingFactors,
-                llmResponse.confidence
-            );
-            
-            // Step 8: Build result with recommended match
-            PcmtEmssnFctrSetItem recommendedFactor = matchingFactors[0];
-            result.recommendedFactorId = recommendedFactor.Id;
-            result.recommendedNaicsCode = llmResponse.suggestedNaicsCode;
-            result.recommendedEconomicSector = recommendedFactor.EconomicSector;
-            result.emissionsFactorValue = recommendedFactor.TotScpe3EmssnPerMillionSpent;
-            result.confidenceScore = confidenceScore;
-            result.reasoning = llmResponse.reasoning;
-            result.status = confidenceScore >= 0.5 ? 'MATCHED' : 'REQUIRES_REVIEW';
-            
-            // Step 9: Build alternative matches
-            if (matchingFactors.size() > 1) {
-                for (Integer i = 1; i < matchingFactors.size() && i < 4; i++) {
-                    PcmtEmssnFctrSetItem altFactor = matchingFactors[i];
-                    AlternativeMatch altMatch = new AlternativeMatch(
-                        altFactor.Id,
-                        altFactor.EconomicSectorCode,
-                        altFactor.EconomicSector
-                    );
-                    altMatch.emissionsFactorValue = altFactor.TotScpe3EmssnPerMillionSpent;
-                    altMatch.confidenceScore = confidenceScore * 0.9; // Slightly lower for alternatives
-                    result.alternatives.add(altMatch);
-                }
-            }
-            
-            // Add alternative NAICS codes from LLM response
-            if (llmResponse.alternativeNaicsCodes != null && !llmResponse.alternativeNaicsCodes.isEmpty()) {
-                for (String altNaics : llmResponse.alternativeNaicsCodes) {
-                    if (LLMService.validateNaicsCode(altNaics)) {
-                        List<PcmtEmssnFctrSetItem> altFactors = findMatchingFactors(altNaics, pcmtEmssnFctrSetId);
-                        if (!altFactors.isEmpty()) {
-                            PcmtEmssnFctrSetItem altFactor = altFactors[0];
-                            AlternativeMatch altMatch = new AlternativeMatch(
-                                altFactor.Id,
-                                altFactor.EconomicSectorCode,
-                                altFactor.EconomicSector
-                            );
-                            altMatch.emissionsFactorValue = altFactor.TotScpe3EmssnPerMillionSpent;
-                            altMatch.confidenceScore = confidenceScore * 0.8; // Lower for different NAICS codes
-                            result.alternatives.add(altMatch);
-                        }
-                    }
-                }
-            }
-            
-        } catch (Exception e) {
-            result.errorMessage = 'Error during matching: ' + e.getMessage();
-            result.status = 'NO_MATCH';
         }
         
-        return result;
+        return matchSpendItemToFactorInternal(item, summary);
     }
     
     /**
