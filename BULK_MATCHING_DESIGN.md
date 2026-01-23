@@ -71,6 +71,11 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
     private Integer totalProcessed = 0;
     private Integer totalMatched = 0;
     private Integer totalNeedsReview = 0;
+    private Integer totalCached = 0; // Items using cache
+    private Integer totalDeduplicated = 0; // Items using deduplication
+    
+    // In-memory deduplication map (cleared between batches, but Stateful keeps it)
+    private Map<String, MatchingResult> categoryHashToResult = new Map<String, MatchingResult>();
     
     public Iterable<Scope3PcmtItem> start(Database.BatchableContext bc) {
         // Query all items for this summary
@@ -83,12 +88,17 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
     
     public void execute(Database.BatchableContext bc, List<Scope3PcmtItem> items) {
         // Process in chunks of 50 (respecting 100 callout limit)
+        // For each item:
+        //   1. Check Response Cache (database) - if found, use it
+        //   2. Check Deduplication Map (memory) - if found, reuse it
+        //   3. If not found, call LLM and store in both cache and map
         // Update records directly if confidence >= 0.7
-        // Track statistics
+        // Track statistics (cached, deduplicated, LLM calls)
     }
     
     public void finish(Database.BatchableContext bc) {
         // Update summary record with completion status
+        // Include cache/deduplication statistics
         // Send notification if needed
     }
 }
@@ -122,29 +132,52 @@ public static List<Scope3PcmtItem> getItemsNeedingReview(Id scope3PcmtSummaryId)
 
 ## Cost Optimization Strategies
 
-### 1. Skip Already Matched Items
+### 1. Response Caching (Persistent)
+- **Purpose**: Cache LLM responses in custom object `LLM_Response_Cache__c`
+- **How it works**: 
+  - First time a category combination is seen → Call LLM → Store result in cache
+  - Subsequent times (even across different bulk runs) → Retrieve from cache → No LLM call
+- **Storage**: Custom object in customer's Salesforce org (persists indefinitely)
+- **Impact**: 20-30% cost reduction if category combinations repeat across time
+- **Implementation**: `LLMResponseCache` service class handles cache lookups and storage
+
+### 2. Deduplication (In-Memory)
+- **Purpose**: Identify duplicate items within the same bulk processing batch
+- **How it works**:
+  - First occurrence of category combination → Call LLM → Store in memory Map
+  - Duplicate items in same batch → Reuse result from Map → No LLM call
+- **Storage**: In-memory Map (cleared when batch completes)
+- **Impact**: 30-40% cost reduction if items repeat within same batch
+- **Implementation**: Built into `BulkMatchingBatch.execute()` method
+
+### 3. Skip Already Matched Items
 - Only process items where `PcmtEmssnFctrSetItemId = null`
 - Query filter: `WHERE ProcurementSummaryId = :summaryId AND PcmtEmssnFctrSetItemId = null`
 
-### 2. Confidence Threshold for Auto-Apply
+### 4. Confidence Threshold for Auto-Apply
 - Only auto-apply matches with confidence >= 0.7 (configurable)
 - Items with lower confidence require manual review
 - Reduces unnecessary LLM calls for edge cases
 
-### 3. Batch Processing Limits
+### 5. Batch Processing Limits
 - Process max 50 items per batch execution (respecting 100 callout limit)
 - Each item = 1 LLM callout
 - Leaves buffer for retries/errors
 
-### 4. Skip Items Without Categories
+### 6. Skip Items Without Categories
 - Pre-filter items with no spending categories
 - Mark as "NO_MATCH" without LLM call
 - Saves API costs
 
-### 5. Candidate Code Pre-filtering
+### 7. Candidate Code Pre-filtering
 - Use existing `KeywordMatchingService` to narrow candidates
 - Only call LLM if candidates found
 - Reduces prompt complexity and improves accuracy
+
+### Combined Cost Impact
+- **Baseline**: $2,250 for 100,000 items
+- **With Caching + Deduplication**: ~$1,350-1,575 (40-50% reduction)
+- **Additional savings from other strategies**: Further 20-30% reduction possible
 
 ## Governor Limits Management
 
