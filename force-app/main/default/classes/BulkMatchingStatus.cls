@@ -31,6 +31,18 @@ public class BulkMatchingStatus {
     @AuraEnabled
     public Decimal progressPercentage { get; set; }
     
+    @AuraEnabled
+    public Integer cacheHits { get; set; }
+    
+    @AuraEnabled
+    public Integer deduplicated { get; set; }
+    
+    @AuraEnabled
+    public Integer llmCalls { get; set; }
+    
+    @AuraEnabled
+    public Decimal costSaved { get; set; }
+    
     /**
      * @description Default constructor
      */
@@ -41,6 +53,10 @@ public class BulkMatchingStatus {
         this.matchedItems = 0;
         this.needsReviewItems = 0;
         this.progressPercentage = 0.0;
+        this.cacheHits = 0;
+        this.deduplicated = 0;
+        this.llmCalls = 0;
+        this.costSaved = 0.0;
     }
     
     /**

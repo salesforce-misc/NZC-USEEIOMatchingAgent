@@ -1,0 +1,23 @@
+.slds-progress-bar__value {
+    background-color: #1589ee;
+    transition: width 0.3s ease;
+}
+
+.slds-box.slds-theme_success {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.slds-box.slds-theme_warning {
+    background-color: #FFC107;
+    color: black;
+}
+
+.slds-box.slds-theme_info {
+    background-color: #2196F3;
+    color: white;
+}
+
+.slds-box.slds-theme_shade {
+    background-color: #f3f3f3;
+}

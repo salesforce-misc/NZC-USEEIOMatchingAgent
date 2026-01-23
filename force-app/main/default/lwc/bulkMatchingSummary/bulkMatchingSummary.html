@@ -1,0 +1,127 @@
+<template>
+    <lightning-card title="Bulk Emissions Factor Matching" icon-name="standard:data_mapping">
+        <div class="slds-p-around_medium">
+            
+            <!-- Status Section -->
+            <div class="slds-box slds-theme_shade slds-m-bottom_medium">
+                <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                    <div>
+                        <h3 class="slds-text-heading_small slds-m-bottom_x-small">Status</h3>
+                        <span class={statusClass}>{statusLabel}</span>
+                    </div>
+                    <div>
+                        <lightning-button
+                            label="Match All Items"
+                            variant="brand"
+                            icon-name="utility:search"
+                            onclick={handleStartMatching}
+                            disabled={!canStartMatching || isLoading}>
+                        </lightning-button>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar (if in progress) -->
+                <template if:true={matchingStatus}>
+                    <template if:true={matchingStatus.inProgress}>
+                        <div class="slds-m-top_small">
+                            <div class="slds-progress-bar slds-progress-bar_circular" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progressPercentage}>
+                                <span class="slds-progress-bar__value" style={progressBarStyle}>
+                                    <span class="slds-assistive-text">{progressPercentage}% complete</span>
+                                </span>
+                            </div>
+                            <p class="slds-text-body_small slds-m-top_x-small">
+                                Processing {matchingStatus.processedItems} of {matchingStatus.totalItems} items...
+                            </p>
+                        </div>
+                    </template>
+                </template>
+            </div>
+            
+            <!-- Statistics Section -->
+            <template if:true={matchingStatus}>
+                <template if:true={matchingStatus.complete}>
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+                        <div class="slds-col slds-size_1-of-4">
+                            <div class="slds-box slds-theme_shade slds-text-align_center">
+                                <div class="slds-text-heading_large">{matchingStatus.processedItems}</div>
+                                <div class="slds-text-body_small slds-text-color_weak">Items Processed</div>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-4">
+                            <div class="slds-box slds-theme_success slds-text-align_center">
+                                <div class="slds-text-heading_large">{matchingStatus.matchedItems}</div>
+                                <div class="slds-text-body_small slds-text-color_weak">Matched</div>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-4">
+                            <div class="slds-box slds-theme_warning slds-text-align_center">
+                                <div class="slds-text-heading_large">{matchingStatus.needsReviewItems}</div>
+                                <div class="slds-text-body_small slds-text-color_weak">Need Review</div>
+                            </div>
+                        </div>
+                        <div class="slds-col slds-size_1-of-4">
+                            <div class="slds-box slds-theme_info slds-text-align_center">
+                                <div class="slds-text-heading_large">{costSavedFormatted}</div>
+                                <div class="slds-text-body_small slds-text-color_weak">Cost Saved</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Cost Optimization Metrics -->
+                    <div class="slds-box slds-theme_shade slds-m-bottom_medium">
+                        <h3 class="slds-text-heading_small slds-m-bottom_small">Cost Optimization</h3>
+                        <div class="slds-grid slds-grid_align-spread">
+                            <div>
+                                <span class="slds-text-heading_medium">{matchingStatus.cacheHits || 0}</span>
+                                <span class="slds-text-body_small slds-m-left_x-small slds-text-color_weak">Cache Hits</span>
+                            </div>
+                            <div>
+                                <span class="slds-text-heading_medium">{matchingStatus.deduplicated || 0}</span>
+                                <span class="slds-text-body_small slds-m-left_x-small slds-text-color_weak">Deduplicated</span>
+                            </div>
+                            <div>
+                                <span class="slds-text-heading_medium">{matchingStatus.llmCalls || 0}</span>
+                                <span class="slds-text-body_small slds-m-left_x-small slds-text-color_weak">LLM Calls</span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </template>
+            
+            <!-- Loading Spinner -->
+            <template if:true={isLoading}>
+                <div class="slds-align_absolute-center slds-m-vertical_large">
+                    <lightning-spinner alternative-text="Processing..." size="medium"></lightning-spinner>
+                </div>
+            </template>
+            
+            <!-- Items Needing Review -->
+            <template if:true={hasItemsNeedingReview}>
+                <div class="slds-m-top_medium">
+                    <h3 class="slds-text-heading_small slds-m-bottom_small">Items Needing Review</h3>
+                    <lightning-datatable
+                        key-field="Id"
+                        data={itemsNeedingReview}
+                        columns={reviewTableColumns}
+                        hide-checkbox-column>
+                    </lightning-datatable>
+                </div>
+            </template>
+            
+            <!-- No Items Needing Review -->
+            <template if:false={hasItemsNeedingReview}>
+                <template if:true={matchingStatus}>
+                    <template if:true={matchingStatus.complete}>
+                        <div class="slds-box slds-theme_success slds-text-align_center slds-p-around_medium">
+                            <p class="slds-text-heading_small">All items have been matched!</p>
+                            <p class="slds-text-body_small slds-m-top_x-small slds-text-color_weak">
+                                {matchingStatus.matchedItems} items were automatically matched with high confidence.
+                            </p>
+                        </div>
+                    </template>
+                </template>
+            </template>
+            
+        </div>
+    </lightning-card>
+</template>
