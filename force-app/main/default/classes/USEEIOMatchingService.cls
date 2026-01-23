@@ -550,4 +550,166 @@ public class USEEIOMatchingService {
      * @description Custom exception for matching errors
      */
     public class MatchingException extends Exception {}
+    
+    // ==========================================
+    // Bulk Matching Methods for LWC Integration
+    // ==========================================
+    
+    /**
+     * @description Start bulk matching process for a Scope3PcmtSummary
+     * @param scope3PcmtSummaryId Scope3PcmtSummary record ID
+     * @return Map with success status and job ID
+     */
+    @AuraEnabled(cacheable=false)
+    public static Map<String, Object> startBulkMatching(Id scope3PcmtSummaryId) {
+        Map<String, Object> response = new Map<String, Object>();
+        
+        try {
+            // Validate summary exists and has factor set
+            Scope3PcmtSummary summary = [
+                SELECT Id, PcmtEmssnFctrId, Bulk_Matching_Status__c
+                FROM Scope3PcmtSummary
+                WHERE Id = :scope3PcmtSummaryId
+                LIMIT 1
+            ];
+            
+            if (summary.PcmtEmssnFctrId == null) {
+                response.put('success', false);
+                response.put('error', 'Procurement Summary must have a Procurement Emissions Factor Set');
+                return response;
+            }
+            
+            // Check if already in progress
+            if (summary.Bulk_Matching_Status__c == 'In Progress') {
+                response.put('success', false);
+                response.put('error', 'Bulk matching is already in progress for this summary');
+                return response;
+            }
+            
+            // Check if there are items to process
+            Integer itemCount = [
+                SELECT COUNT()
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :scope3PcmtSummaryId
+                AND PcmtEmssnFctrSetItemId = null
+            ];
+            
+            if (itemCount == 0) {
+                response.put('success', false);
+                response.put('error', 'No unmatched items found to process');
+                return response;
+            }
+            
+            // Enqueue the queueable job
+            BulkMatchingQueueable queueable = new BulkMatchingQueueable(scope3PcmtSummaryId);
+            Id jobId = System.enqueueJob(queueable);
+            
+            response.put('success', true);
+            response.put('jobId', String.valueOf(jobId));
+            response.put('message', 'Bulk matching started successfully');
+            
+        } catch (Exception e) {
+            response.put('success', false);
+            response.put('error', 'Failed to start bulk matching: ' + e.getMessage());
+            System.debug('Error starting bulk matching: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+        }
+        
+        return response;
+    }
+    
+    /**
+     * @description Get current bulk matching status for a Scope3PcmtSummary
+     * @param scope3PcmtSummaryId Scope3PcmtSummary record ID
+     * @return BulkMatchingStatus with current status and statistics
+     */
+    @AuraEnabled(cacheable=true)
+    public static BulkMatchingStatus getMatchingStatus(Id scope3PcmtSummaryId) {
+        BulkMatchingStatus status = new BulkMatchingStatus();
+        
+        try {
+            Scope3PcmtSummary summary = [
+                SELECT Id, Bulk_Matching_Status__c, Bulk_Matching_Job_Id__c,
+                       Bulk_Matching_Completed_Date__c, Bulk_Matching_Items_Processed__c,
+                       Bulk_Matching_Items_Matched__c, Bulk_Matching_Items_Needing_Review__c,
+                       Bulk_Matching_Cache_Hits__c, Bulk_Matching_Deduplicated__c,
+                       Bulk_Matching_LLM_Calls__c, Bulk_Matching_Cost_Saved__c
+                FROM Scope3PcmtSummary
+                WHERE Id = :scope3PcmtSummaryId
+                LIMIT 1
+            ];
+            
+            // Map status from picklist to enum
+            if (summary.Bulk_Matching_Status__c == 'Not Started') {
+                status.status = 'NOT_STARTED';
+            } else if (summary.Bulk_Matching_Status__c == 'In Progress') {
+                status.status = 'IN_PROGRESS';
+            } else if (summary.Bulk_Matching_Status__c == 'Complete') {
+                status.status = 'COMPLETE';
+            } else if (summary.Bulk_Matching_Status__c == 'Error') {
+                status.status = 'ERROR';
+            } else {
+                status.status = 'NOT_STARTED';
+            }
+            
+            status.jobId = summary.Bulk_Matching_Job_Id__c;
+            status.completedDate = summary.Bulk_Matching_Completed_Date__c;
+            status.processedItems = summary.Bulk_Matching_Items_Processed__c != null ? summary.Bulk_Matching_Items_Processed__c.intValue() : 0;
+            status.matchedItems = summary.Bulk_Matching_Items_Matched__c != null ? summary.Bulk_Matching_Items_Matched__c.intValue() : 0;
+            status.needsReviewItems = summary.Bulk_Matching_Items_Needing_Review__c != null ? summary.Bulk_Matching_Items_Needing_Review__c.intValue() : 0;
+            status.cacheHits = summary.Bulk_Matching_Cache_Hits__c != null ? summary.Bulk_Matching_Cache_Hits__c.intValue() : 0;
+            status.deduplicated = summary.Bulk_Matching_Deduplicated__c != null ? summary.Bulk_Matching_Deduplicated__c.intValue() : 0;
+            status.llmCalls = summary.Bulk_Matching_LLM_Calls__c != null ? summary.Bulk_Matching_LLM_Calls__c.intValue() : 0;
+            status.costSaved = summary.Bulk_Matching_Cost_Saved__c != null ? summary.Bulk_Matching_Cost_Saved__c : 0.0;
+            
+            // Get total items count
+            Integer totalItems = [
+                SELECT COUNT()
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :scope3PcmtSummaryId
+            ];
+            status.totalItems = totalItems;
+            
+            // Calculate progress
+            status.calculateProgress();
+            
+        } catch (Exception e) {
+            status.status = 'ERROR';
+            status.errorMessage = 'Failed to get matching status: ' + e.getMessage();
+            System.debug('Error getting matching status: ' + e.getMessage());
+        }
+        
+        return status;
+    }
+    
+    /**
+     * @description Get items that need manual review (low confidence or no match)
+     * @param scope3PcmtSummaryId Scope3PcmtSummary record ID
+     * @return List of Scope3PcmtItem records needing review
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<Scope3PcmtItem> getItemsNeedingReview(Id scope3PcmtSummaryId) {
+        try {
+            // Get items with no match or low confidence
+            List<Scope3PcmtItem> items = [
+                SELECT Id, Name, SpendingCategory1, SpendingCategory2, SpendingCategory3,
+                       PcmtEmssnFctrSetItemId, Match_Confidence_Score__c, Match_Reasoning__c,
+                       Match_Source__c
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :scope3PcmtSummaryId
+                AND (
+                    PcmtEmssnFctrSetItemId = null
+                    OR Match_Confidence_Score__c < 0.7
+                )
+                ORDER BY Match_Confidence_Score__c DESC NULLS LAST, Name
+                LIMIT 1000
+            ];
+            
+            return items;
+            
+        } catch (Exception e) {
+            System.debug('Error getting items needing review: ' + e.getMessage());
+            return new List<Scope3PcmtItem>();
+        }
+    }
 }
