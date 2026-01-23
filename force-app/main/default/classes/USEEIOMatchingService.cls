@@ -7,6 +7,304 @@
 public class USEEIOMatchingService {
     
     /**
+     * @description Bulk matching method to process multiple Scope3PcmtItem records
+     * @description Processes items in batches to respect governor limits
+     * @param scope3PcmtItemIds List of Scope3PcmtItem record IDs to match
+     * @param batchSize Number of items to process per batch (default: 10, max recommended: 20)
+     * @return BulkMatchingResult with results for all items
+     */
+    @AuraEnabled(cacheable=false)
+    public static BulkMatchingResult matchSpendItemsToFactors(List<Id> scope3PcmtItemIds, Integer batchSize) {
+        BulkMatchingResult bulkResult = new BulkMatchingResult(scope3PcmtItemIds != null ? scope3PcmtItemIds.size() : 0);
+        
+        if (scope3PcmtItemIds == null || scope3PcmtItemIds.isEmpty()) {
+            bulkResult.status = 'ERROR';
+            bulkResult.errors.add('No Scope3PcmtItem IDs provided');
+            bulkResult.isComplete = true;
+            return bulkResult;
+        }
+        
+        // Set default batch size if not provided
+        if (batchSize == null || batchSize <= 0) {
+            batchSize = 10; // Conservative default to respect callout limits
+        }
+        
+        // Limit batch size to respect callout limits (100 callouts per transaction)
+        // Each match requires 1 LLM callout, so max 50-80 items per transaction to be safe
+        if (batchSize > 50) {
+            batchSize = 50;
+        }
+        
+        try {
+            // Process items in batches
+            Integer totalItems = scope3PcmtItemIds.size();
+            Integer processed = 0;
+            
+            // Process in chunks to respect governor limits
+            for (Integer i = 0; i < totalItems; i += batchSize) {
+                Integer endIndex = Math.min(i + batchSize, totalItems);
+                List<Id> batch = new List<Id>();
+                for (Integer j = i; j < endIndex; j++) {
+                    batch.add(scope3PcmtItemIds[j]);
+                }
+                
+                // Process this batch
+                processBatch(batch, bulkResult);
+                
+                processed += batch.size();
+                bulkResult.processedItems = processed;
+                
+                // Check governor limits - if we're getting close, stop and return partial results
+                if (Limits.getCallouts() >= 90 || Limits.getCpuTime() >= 9000) {
+                    bulkResult.status = 'IN_PROGRESS';
+                    bulkResult.errors.add('Processing stopped due to governor limits. Processed ' + processed + ' of ' + totalItems + ' items.');
+                    return bulkResult;
+                }
+            }
+            
+            bulkResult.status = 'COMPLETE';
+            bulkResult.isComplete = true;
+            
+        } catch (Exception e) {
+            bulkResult.status = 'ERROR';
+            bulkResult.errors.add('Bulk matching failed: ' + e.getMessage());
+            bulkResult.isComplete = true;
+        }
+        
+        return bulkResult;
+    }
+    
+    /**
+     * @description Process a batch of Scope3PcmtItem records
+     * @param batch List of Scope3PcmtItem IDs to process
+     * @param bulkResult BulkMatchingResult to update with results
+     */
+    private static void processBatch(List<Id> batch, BulkMatchingResult bulkResult) {
+        // Query all items in batch upfront to minimize SOQL queries
+        Map<Id, Scope3PcmtItem> itemsMap = new Map<Id, Scope3PcmtItem>([
+            SELECT Id, SpendingCategory1, SpendingCategory2, SpendingCategory3,
+                   ProcurementSummaryId, PcmtEmssnFctrSetItemId
+            FROM Scope3PcmtItem
+            WHERE Id IN :batch
+        ]);
+        
+        // Query all parent summaries in one query
+        Set<Id> summaryIds = new Set<Id>();
+        for (Scope3PcmtItem item : itemsMap.values()) {
+            if (item.ProcurementSummaryId != null) {
+                summaryIds.add(item.ProcurementSummaryId);
+            }
+        }
+        
+        Map<Id, Scope3PcmtSummary> summariesMap = new Map<Id, Scope3PcmtSummary>();
+        if (!summaryIds.isEmpty()) {
+            summariesMap = new Map<Id, Scope3PcmtSummary>([
+                SELECT Id, PcmtEmssnFctrId
+                FROM Scope3PcmtSummary
+                WHERE Id IN :summaryIds
+            ]);
+        }
+        
+        // Process each item in the batch
+        for (Id itemId : batch) {
+            Scope3PcmtItem item = itemsMap.get(itemId);
+            if (item == null) {
+                MatchingResult errorResult = new MatchingResult(itemId, 'NO_MATCH');
+                errorResult.errorMessage = 'Scope3PcmtItem not found';
+                bulkResult.results.add(errorResult);
+                bulkResult.failedMatches++;
+                continue;
+            }
+            
+            try {
+                // Call the single-item matching method
+                MatchingResult result = matchSpendItemToFactorInternal(item, summariesMap.get(item.ProcurementSummaryId));
+                bulkResult.results.add(result);
+                
+                if (result.status == 'MATCHED' || result.status == 'REQUIRES_REVIEW') {
+                    bulkResult.successfulMatches++;
+                } else {
+                    bulkResult.failedMatches++;
+                }
+                
+            } catch (Exception e) {
+                MatchingResult errorResult = new MatchingResult(itemId, 'NO_MATCH');
+                errorResult.errorMessage = 'Error processing item: ' + e.getMessage();
+                bulkResult.results.add(errorResult);
+                bulkResult.failedMatches++;
+                bulkResult.errors.add('Item ' + itemId + ': ' + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * @description Internal matching method that accepts pre-queried records
+     * @description This avoids redundant queries when processing in bulk
+     * @param item The Scope3PcmtItem record (already queried)
+     * @param summary The Scope3PcmtSummary record (already queried, can be null)
+     * @return MatchingResult with recommended match
+     */
+    private static MatchingResult matchSpendItemToFactorInternal(Scope3PcmtItem item, Scope3PcmtSummary summary) {
+        MatchingResult result = new MatchingResult(item.Id, 'NO_MATCH');
+        
+        try {
+            // Validate parent summary
+            if (summary == null) {
+                result.errorMessage = 'Scope3PcmtItem must have a Procurement Summary';
+                result.status = 'NO_MATCH';
+                return result;
+            }
+            
+            if (summary.PcmtEmssnFctrId == null) {
+                result.errorMessage = 'Procurement Summary must have a Procurement Emissions Factor Set';
+                result.status = 'NO_MATCH';
+                return result;
+            }
+            
+            Id pcmtEmssnFctrSetId = summary.PcmtEmssnFctrId;
+            
+            // Extract and normalize spending categories
+            String normalizedCategories = analyzeSpendingCategories(
+                item.SpendingCategory1,
+                item.SpendingCategory2,
+                item.SpendingCategory3
+            );
+            
+            if (String.isBlank(normalizedCategories)) {
+                result.errorMessage = 'No spending categories provided';
+                result.status = 'NO_MATCH';
+                return result;
+            }
+            
+            // Step 4: Stage 1 - Keyword-based pre-filtering to get candidate NAICS codes
+            List<String> candidateCodes = KeywordMatchingService.findCandidateNaicsCodes(
+                item.SpendingCategory1,
+                item.SpendingCategory2,
+                item.SpendingCategory3,
+                50 // Top 50 candidates
+            );
+            
+            // Step 4b: Get candidate code details from factor set to provide context to LLM
+            Map<String, String> candidateCodeDescriptions = new Map<String, String>();
+            if (candidateCodes != null && !candidateCodes.isEmpty()) {
+                List<PcmtEmssnFctrSetItem> candidateFactors = [
+                    SELECT EconomicSectorCode, EconomicSector, EconomicSectorCategory
+                    FROM PcmtEmssnFctrSetItem
+                    WHERE EconomicSectorCode IN :candidateCodes
+                    AND PcmtEmssnFctrSetId = :pcmtEmssnFctrSetId
+                    LIMIT 50
+                ];
+                for (PcmtEmssnFctrSetItem factor : candidateFactors) {
+                    if (factor.EconomicSectorCode != null) {
+                        String description = (factor.EconomicSector != null ? factor.EconomicSector : '') + 
+                                     (factor.EconomicSectorCategory != null ? ' - ' + factor.EconomicSectorCategory : '');
+                        candidateCodeDescriptions.put(factor.EconomicSectorCode, description);
+                    }
+                }
+            }
+            
+            // Step 5: Stage 2 - Call LLM service
+            LLMService.LLMResponse llmResponse = LLMService.suggestNaicsCode(
+                item.SpendingCategory1,
+                item.SpendingCategory2,
+                item.SpendingCategory3,
+                candidateCodes,
+                candidateCodeDescriptions
+            );
+            
+            if (String.isNotBlank(llmResponse.errorMessage)) {
+                result.errorMessage = llmResponse.errorMessage;
+                result.status = 'NO_MATCH';
+                return result;
+            }
+            
+            if (String.isBlank(llmResponse.suggestedNaicsCode)) {
+                result.errorMessage = 'LLM did not suggest a NAICS code';
+                result.status = 'NO_MATCH';
+                return result;
+            }
+            
+            // Validate NAICS code format
+            if (!LLMService.validateNaicsCode(llmResponse.suggestedNaicsCode)) {
+                result.errorMessage = 'Invalid NAICS code format: ' + llmResponse.suggestedNaicsCode;
+                result.status = 'NO_MATCH';
+                return result;
+            }
+            
+            // Step 6: Stage 3 - Find matching PcmtEmssnFctrSetItem records
+            List<PcmtEmssnFctrSetItem> matchingFactors = findMatchingFactors(
+                llmResponse.suggestedNaicsCode,
+                pcmtEmssnFctrSetId
+            );
+            
+            if (matchingFactors.isEmpty()) {
+                result.errorMessage = 'No matching emissions factor found for NAICS code: ' + llmResponse.suggestedNaicsCode;
+                result.status = 'NO_MATCH';
+                result.reasoning = llmResponse.reasoning;
+                return result;
+            }
+            
+            // Step 7: Calculate confidence score
+            Decimal confidenceScore = calculateConfidenceScore(
+                llmResponse.suggestedNaicsCode,
+                matchingFactors,
+                llmResponse.confidence
+            );
+            
+            // Step 8: Build result with recommended match
+            PcmtEmssnFctrSetItem recommendedFactor = matchingFactors[0];
+            result.recommendedFactorId = recommendedFactor.Id;
+            result.recommendedNaicsCode = llmResponse.suggestedNaicsCode;
+            result.recommendedEconomicSector = recommendedFactor.EconomicSector;
+            result.emissionsFactorValue = recommendedFactor.TotScpe3EmssnPerMillionSpent;
+            result.confidenceScore = confidenceScore;
+            result.reasoning = llmResponse.reasoning;
+            result.status = confidenceScore >= 0.5 ? 'MATCHED' : 'REQUIRES_REVIEW';
+            
+            // Step 9: Build alternative matches
+            if (matchingFactors.size() > 1) {
+                for (Integer i = 1; i < matchingFactors.size() && i < 4; i++) {
+                    PcmtEmssnFctrSetItem altFactor = matchingFactors[i];
+                    AlternativeMatch altMatch = new AlternativeMatch(
+                        altFactor.Id,
+                        altFactor.EconomicSectorCode,
+                        altFactor.EconomicSector
+                    );
+                    altMatch.emissionsFactorValue = altFactor.TotScpe3EmssnPerMillionSpent;
+                    altMatch.confidenceScore = confidenceScore * 0.9;
+                    result.alternatives.add(altMatch);
+                }
+            }
+            
+            // Add alternative NAICS codes from LLM response
+            if (llmResponse.alternativeNaicsCodes != null && !llmResponse.alternativeNaicsCodes.isEmpty()) {
+                for (String altNaics : llmResponse.alternativeNaicsCodes) {
+                    if (LLMService.validateNaicsCode(altNaics)) {
+                        List<PcmtEmssnFctrSetItem> altFactors = findMatchingFactors(altNaics, pcmtEmssnFctrSetId);
+                        if (!altFactors.isEmpty()) {
+                            PcmtEmssnFctrSetItem altFactor = altFactors[0];
+                            AlternativeMatch altMatch = new AlternativeMatch(
+                                altFactor.Id,
+                                altFactor.EconomicSectorCode,
+                                altFactor.EconomicSector
+                            );
+                            altMatch.emissionsFactorValue = altFactor.TotScpe3EmssnPerMillionSpent;
+                            altMatch.confidenceScore = confidenceScore * 0.8;
+                            result.alternatives.add(altMatch);
+                        }
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            result.errorMessage = 'Error during matching: ' + e.getMessage();
+            result.status = 'NO_MATCH';
+        }
+        
+        return result;
+    }
+    
+    /**
      * @description Main method to match a spend item to an emissions factor (AuraEnabled for LWC)
      * @param scope3PcmtItemId The Scope3PcmtItem record ID to match
      * @return MatchingResult with recommended match, confidence, and alternatives
