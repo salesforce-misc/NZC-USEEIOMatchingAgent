@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Bulk_Matching_LLM_Calls__c</fullName>
+    <description>Actual number of LLM API calls made during bulk matching (after cache and deduplication).</description>
+    <externalId>false</externalId>
+    <label>Bulk Matching LLM Calls</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+    <defaultValue>0</defaultValue>
+</CustomField>
