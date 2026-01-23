@@ -66,8 +66,10 @@ public class BulkMatchingQueueable implements Queueable {
             update summary;
             
             // Enqueue Batch Apex job
+            // Batch size of 50 matches our processing limit (MAX_ITEMS_PER_EXECUTION)
+            // This ensures all items passed to execute() are actually processed
             BulkMatchingBatch batch = new BulkMatchingBatch(scope3PcmtSummaryId);
-            Id jobId = Database.executeBatch(batch, 200);
+            Id jobId = Database.executeBatch(batch, 50);
             
             // Store job ID on summary
             summary.Bulk_Matching_Job_Id__c = String.valueOf(jobId);

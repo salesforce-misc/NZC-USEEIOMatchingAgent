@@ -22,8 +22,9 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
     private Map<String, MatchingResult> categoryHashToResult = new Map<String, MatchingResult>();
     
     // Configuration
-    private static final Integer MAX_ITEMS_PER_EXECUTION = 50; // Respect 100 callout limit
+    private static final Integer MAX_ITEMS_PER_EXECUTION = 50; // Respect 100 callout limit (50 items = max 50 callouts)
     private static final Decimal CONFIDENCE_THRESHOLD = 0.7; // Auto-apply threshold
+    // Note: Batch size in executeBatch() should match MAX_ITEMS_PER_EXECUTION to ensure all items are processed
     
     /**
      * @description Constructor
