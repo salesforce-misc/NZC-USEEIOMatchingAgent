@@ -176,10 +176,14 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                         totalMatched++;
                     } else {
                         // Low confidence or no match - needs review
+                        item.Review_Status__c = 'Pending Review';
+                        itemsToUpdate.add(item);
                         totalNeedsReview++;
                     }
                 } else {
                     // No result - needs review
+                    item.Review_Status__c = 'Pending Review';
+                    itemsToUpdate.add(item);
                     totalNeedsReview++;
                 }
                 
