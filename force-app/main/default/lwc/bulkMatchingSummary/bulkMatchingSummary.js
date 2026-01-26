@@ -38,6 +38,8 @@ export default class BulkMatchingSummary extends LightningElement {
     // Status data
     matchingStatus = null;
     itemsNeedingReview = [];
+    selectedRows = [];
+    factorSetId = null; // Store factor set ID directly
     
     // UI state
     isLoading = false;
@@ -48,13 +50,41 @@ export default class BulkMatchingSummary extends LightningElement {
     wiredStatusResult;
     wiredItemsResult;
     
+    // Data table columns for items needing review
+    reviewTableColumns = [
+        { label: 'Name', fieldName: 'Name', type: 'text' },
+        { label: 'Category 1', fieldName: 'SpendingCategory1', type: 'text' },
+        { label: 'Category 2', fieldName: 'SpendingCategory2', type: 'text' },
+        { label: 'Category 3', fieldName: 'SpendingCategory3', type: 'text' },
+        { label: 'Confidence', fieldName: 'Match_Confidence_Score__c', type: 'percent', typeAttributes: { minimumFractionDigits: 1, maximumFractionDigits: 1 } },
+        { label: 'Reasoning', fieldName: 'Match_Reasoning__c', type: 'text', wrapText: true }
+    ];
+    
     // Wire record data
     @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
-    wiredSummary({ error, data }) {
+    wiredSummary(result) {
+        this.wiredSummaryResult = result; // Store the result object so hasFactorSet can access it
+        const { data, error } = result;
+        console.log('wiredSummary called - storing result:', result);
         if (data) {
+            // Store factor set ID directly for faster access
+            this.factorSetId = getFieldValue(data, PCMT_EMSSN_FCTR_ID_FIELD);
+            console.log('Wire service loaded data:', data);
+            console.log('PcmtEmssnFctrId value:', this.factorSetId);
+            console.log('All field values:', {
+                status: getFieldValue(data, BULK_MATCHING_STATUS_FIELD),
+                factorSetId: this.factorSetId,
+                processed: getFieldValue(data, BULK_MATCHING_ITEMS_PROCESSED_FIELD)
+            });
             this.loadStatus();
         } else if (error) {
-            this.showToast('Error', 'Failed to load summary data', 'error');
+            console.error('Wire service error:', error);
+            console.error('Error details:', JSON.stringify(error, null, 2));
+            const errorMsg = error.body?.message || error.message || error.toString() || 'Unknown error';
+            console.error('Error message:', errorMsg);
+            this.showToast('Error', 'Failed to load summary data: ' + errorMsg, 'error');
+        } else {
+            console.log('Wire service: No data and no error (still loading?)');
         }
     }
     
@@ -107,13 +137,36 @@ export default class BulkMatchingSummary extends LightningElement {
     }
     
     get canStartMatching() {
-        return !this.isLoading && 
+        const result = !this.isLoading && 
                this.currentStatus !== 'IN_PROGRESS' && 
                this.hasFactorSet;
+        // Use debug getter for logging
+        this.canStartMatchingDebug;
+        return result;
+    }
+    
+    get isStartButtonDisabled() {
+        return !this.canStartMatching;
     }
     
     get hasFactorSet() {
-        return getFieldValue(this.wiredSummary?.data, PCMT_EMSSN_FCTR_ID_FIELD) != null;
+        // Use directly stored factorSetId for faster access
+        const hasFactorSet = this.factorSetId != null;
+        console.log('hasFactorSet getter - factorSetId:', this.factorSetId, 'hasFactorSet:', hasFactorSet);
+        return hasFactorSet;
+    }
+    
+    get canStartMatchingDebug() {
+        const result = !this.isLoading && 
+               this.currentStatus !== 'IN_PROGRESS' && 
+               this.hasFactorSet;
+        console.log('canStartMatching check:', {
+            isLoading: this.isLoading,
+            currentStatus: this.currentStatus,
+            hasFactorSet: this.hasFactorSet,
+            result: result
+        });
+        return result;
     }
     
     get progressPercentage() {
@@ -137,6 +190,10 @@ export default class BulkMatchingSummary extends LightningElement {
         return this.selectedRows && this.selectedRows.length > 0;
     }
     
+    get isActionButtonsDisabled() {
+        return !this.hasSelectedRows;
+    }
+    
     get reviewProgressText() {
         if (this.matchingStatus) {
             const pending = this.matchingStatus.pendingReview || 0;
@@ -158,6 +215,26 @@ export default class BulkMatchingSummary extends LightningElement {
         return '$0.00';
     }
     
+    get cacheHitsDisplay() {
+        return this.matchingStatus && this.matchingStatus.cacheHits ? this.matchingStatus.cacheHits : 0;
+    }
+    
+    get deduplicatedDisplay() {
+        return this.matchingStatus && this.matchingStatus.deduplicated ? this.matchingStatus.deduplicated : 0;
+    }
+    
+    get llmCallsDisplay() {
+        return this.matchingStatus && this.matchingStatus.llmCalls ? this.matchingStatus.llmCalls : 0;
+    }
+    
+    get progressBarStyle() {
+        return `width: ${this.progressPercentage}%`;
+    }
+    
+    get reviewProgressBarStyle() {
+        return `width: ${this.reviewProgressPercentage}%`;
+    }
+    
     // Methods
     async handleStartMatching() {
         this.isLoading = true;
@@ -169,7 +246,7 @@ export default class BulkMatchingSummary extends LightningElement {
                 this.showToast('Success', 'Bulk matching started successfully', 'success');
                 // Refresh status
                 await refreshApex(this.wiredStatusResult);
-                await refreshApex(this.wiredSummary);
+                await refreshApex(this.wiredSummaryResult);
                 // Start polling
                 this.startPolling();
             } else {
@@ -224,6 +301,73 @@ export default class BulkMatchingSummary extends LightningElement {
             variant: variant
         });
         this.dispatchEvent(event);
+    }
+    
+    // Handle row selection in data table
+    handleRowSelection(event) {
+        this.selectedRows = event.detail.selectedRows.map(row => row.Id);
+    }
+    
+    // Handle marking items as reviewed
+    async handleMarkAsReviewed() {
+        if (!this.selectedRows || this.selectedRows.length === 0) {
+            this.showToast('Warning', 'Please select items to mark as reviewed', 'warning');
+            return;
+        }
+        
+        this.isLoading = true;
+        try {
+            const response = await markItemsAsReviewed({ 
+                itemIds: this.selectedRows,
+                reviewStatus: 'Reviewed'
+            });
+            
+            if (response.success) {
+                this.showToast('Success', `${this.selectedRows.length} item(s) marked as reviewed`, 'success');
+                this.selectedRows = [];
+                // Refresh data
+                await refreshApex(this.wiredStatusResult);
+                await refreshApex(this.wiredItemsResult);
+            } else {
+                this.showToast('Error', response.error || 'Failed to mark items as reviewed', 'error');
+            }
+        } catch (error) {
+            this.showToast('Error', error.body?.message || error.message || 'Failed to mark items as reviewed', 'error');
+            console.error('Error marking items as reviewed:', error);
+        } finally {
+            this.isLoading = false;
+        }
+    }
+    
+    // Handle marking items as skipped
+    async handleMarkAsSkipped() {
+        if (!this.selectedRows || this.selectedRows.length === 0) {
+            this.showToast('Warning', 'Please select items to skip', 'warning');
+            return;
+        }
+        
+        this.isLoading = true;
+        try {
+            const response = await markItemsAsReviewed({ 
+                itemIds: this.selectedRows,
+                reviewStatus: 'Skipped'
+            });
+            
+            if (response.success) {
+                this.showToast('Success', `${this.selectedRows.length} item(s) marked as skipped`, 'success');
+                this.selectedRows = [];
+                // Refresh data
+                await refreshApex(this.wiredStatusResult);
+                await refreshApex(this.wiredItemsResult);
+            } else {
+                this.showToast('Error', response.error || 'Failed to mark items as skipped', 'error');
+            }
+        } catch (error) {
+            this.showToast('Error', error.body?.message || error.message || 'Failed to mark items as skipped', 'error');
+            console.error('Error marking items as skipped:', error);
+        } finally {
+            this.isLoading = false;
+        }
     }
     
     // Cleanup on component destroy

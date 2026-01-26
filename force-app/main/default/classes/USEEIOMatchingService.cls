@@ -145,7 +145,7 @@ public class USEEIOMatchingService {
      * @param summary The Scope3PcmtSummary record (already queried, can be null)
      * @return MatchingResult with recommended match
      */
-    private static MatchingResult matchSpendItemToFactorInternal(Scope3PcmtItem item, Scope3PcmtSummary summary) {
+    public static MatchingResult matchSpendItemToFactorInternal(Scope3PcmtItem item, Scope3PcmtSummary summary) {
         MatchingResult result = new MatchingResult(item.Id, 'NO_MATCH');
         
         try {
@@ -237,23 +237,14 @@ public class USEEIOMatchingService {
                     candidateCodeDescriptions
                 );
                 
-                // Save to cache if LLM call was successful
-                if (llmResponse != null && String.isNotBlank(llmResponse.suggestedNaicsCode) && 
-                    String.isBlank(llmResponse.errorMessage)) {
-                    try {
-                        LLMResponseCache.saveResponse(
-                            item.SpendingCategory1,
-                            item.SpendingCategory2,
-                            item.SpendingCategory3,
-                            pcmtEmssnFctrSetId,
-                            llmResponse
-                        );
-                        System.debug('Saved LLM response to cache for item: ' + item.Id);
-                    } catch (Exception saveEx) {
-                        // If cache save fails, log but continue processing
-                        System.debug('Cache save failed (continuing processing): ' + saveEx.getMessage());
-                    }
-                }
+                // NOTE: Cache save is deferred to avoid pending DML during callout phase
+                // Cache will be saved after all callouts are complete (handled in BulkMatchingBatch)
+            }
+            
+            if (llmResponse == null) {
+                result.errorMessage = 'LLM service returned null response';
+                result.status = 'NO_MATCH';
+                return result;
             }
             
             if (String.isNotBlank(llmResponse.errorMessage)) {
@@ -270,21 +261,41 @@ public class USEEIOMatchingService {
             
             // Validate NAICS code format
             if (!LLMService.validateNaicsCode(llmResponse.suggestedNaicsCode)) {
+                System.debug('Invalid NAICS code format for item ' + item.Id + ': ' + llmResponse.suggestedNaicsCode);
                 result.errorMessage = 'Invalid NAICS code format: ' + llmResponse.suggestedNaicsCode;
                 result.status = 'NO_MATCH';
                 return result;
             }
             
             // Step 6: Stage 3 - Find matching PcmtEmssnFctrSetItem records
+            System.debug('Searching for matching factors for NAICS code: ' + llmResponse.suggestedNaicsCode + 
+                        ' in factor set: ' + pcmtEmssnFctrSetId);
             List<PcmtEmssnFctrSetItem> matchingFactors = findMatchingFactors(
                 llmResponse.suggestedNaicsCode,
                 pcmtEmssnFctrSetId
             );
             
+            System.debug('Found ' + matchingFactors.size() + ' matching factors for NAICS code: ' + llmResponse.suggestedNaicsCode);
+            
             if (matchingFactors.isEmpty()) {
-                result.errorMessage = 'No matching emissions factor found for NAICS code: ' + llmResponse.suggestedNaicsCode;
+                System.debug('No matching emissions factor found for item ' + item.Id + 
+                            ' with NAICS code: ' + llmResponse.suggestedNaicsCode);
+                // LLM suggested a valid NAICS code, but it doesn't exist in this factor set
+                // Still save the reasoning, but mark as NO_MATCH with a helpful error message
+                result.errorMessage = 'LLM suggested NAICS code ' + llmResponse.suggestedNaicsCode + 
+                    ', but this code is not available in the selected emissions factor set. ' +
+                    'The LLM reasoning is preserved for reference.';
                 result.status = 'NO_MATCH';
                 result.reasoning = llmResponse.reasoning;
+                // Set a low confidence score based on LLM confidence (even though we can't match it)
+                // This helps users understand the LLM was confident, but the code isn't available
+                if (llmResponse.confidence == 'HIGH') {
+                    result.confidenceScore = 0.3; // LLM was confident, but code not available
+                } else if (llmResponse.confidence == 'MEDIUM') {
+                    result.confidenceScore = 0.2;
+                } else {
+                    result.confidenceScore = 0.1;
+                }
                 return result;
             }
             
@@ -295,6 +306,9 @@ public class USEEIOMatchingService {
                 llmResponse.confidence
             );
             
+            System.debug('Confidence score for item ' + item.Id + ': ' + confidenceScore + 
+                        ' (LLM confidence: ' + llmResponse.confidence + ', factors: ' + matchingFactors.size() + ')');
+            
             // Step 8: Build result with recommended match
             PcmtEmssnFctrSetItem recommendedFactor = matchingFactors[0];
             result.recommendedFactorId = recommendedFactor.Id;
@@ -304,6 +318,9 @@ public class USEEIOMatchingService {
             result.confidenceScore = confidenceScore;
             result.reasoning = llmResponse.reasoning;
             result.status = confidenceScore >= 0.5 ? 'MATCHED' : 'REQUIRES_REVIEW';
+            
+            System.debug('Final result for item ' + item.Id + ': status=' + result.status + 
+                        ', confidence=' + confidenceScore + ', factorId=' + result.recommendedFactorId);
             
             // Step 9: Build alternative matches
             if (matchingFactors.size() > 1) {
@@ -703,6 +720,7 @@ public class USEEIOMatchingService {
                     OR Match_Confidence_Score__c < 0.7
                 )
                 AND (Review_Status__c = 'Pending Review' OR Review_Status__c = null)
+                // Note: Items with 'Passed Confidence Match' are automatically excluded by the above condition
                 ORDER BY Match_Confidence_Score__c DESC NULLS LAST, Name
                 LIMIT 1000
             ];

@@ -15,7 +15,7 @@
                             variant="brand"
                             icon-name="utility:search"
                             onclick={handleStartMatching}
-                            disabled={!canStartMatching || isLoading}>
+                            disabled={isStartButtonDisabled}>
                         </lightning-button>
                     </div>
                 </div>
@@ -72,15 +72,15 @@
                         <h3 class="slds-text-heading_small slds-m-bottom_small">Cost Optimization</h3>
                         <div class="slds-grid slds-grid_align-spread">
                             <div>
-                                <span class="slds-text-heading_medium">{matchingStatus.cacheHits || 0}</span>
+                                <span class="slds-text-heading_medium">{cacheHitsDisplay}</span>
                                 <span class="slds-text-body_small slds-m-left_x-small slds-text-color_weak">Cache Hits</span>
                             </div>
                             <div>
-                                <span class="slds-text-heading_medium">{matchingStatus.deduplicated || 0}</span>
+                                <span class="slds-text-heading_medium">{deduplicatedDisplay}</span>
                                 <span class="slds-text-body_small slds-m-left_x-small slds-text-color_weak">Deduplicated</span>
                             </div>
                             <div>
-                                <span class="slds-text-heading_medium">{matchingStatus.llmCalls || 0}</span>
+                                <span class="slds-text-heading_medium">{llmCallsDisplay}</span>
                                 <span class="slds-text-body_small slds-m-left_x-small slds-text-color_weak">LLM Calls</span>
                             </div>
                         </div>
@@ -131,7 +131,7 @@
                                 variant="brand"
                                 icon-name="utility:check"
                                 onclick={handleMarkAsReviewed}
-                                disabled={!hasSelectedRows || isLoading}
+                                disabled={isActionButtonsDisabled}
                                 class="slds-m-right_x-small">
                             </lightning-button>
                             <lightning-button
@@ -139,7 +139,7 @@
                                 variant="neutral"
                                 icon-name="utility:forward"
                                 onclick={handleMarkAsSkipped}
-                                disabled={!hasSelectedRows || isLoading}>
+                                disabled={isActionButtonsDisabled}>
                             </lightning-button>
                         </div>
                     </div>

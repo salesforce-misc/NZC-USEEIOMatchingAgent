@@ -22,7 +22,10 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
     private Map<String, MatchingResult> categoryHashToResult = new Map<String, MatchingResult>();
     
     // Configuration
-    private static final Integer MAX_ITEMS_PER_EXECUTION = 50; // Respect 100 callout limit (50 items = max 50 callouts)
+    // Reduced batch size to ensure we stay well under CPU limits (60 seconds for Batch Apex)
+    // With 25 items, we can process ~2-3 items per second and stay under 60 seconds
+    // This allows processing tens of thousands of items across multiple batch executions
+    private static final Integer MAX_ITEMS_PER_EXECUTION = 25; // Conservative limit to avoid CPU timeouts
     private static final Decimal CONFIDENCE_THRESHOLD = 0.7; // Auto-apply threshold
     // Note: Batch size in executeBatch() should match MAX_ITEMS_PER_EXECUTION to ensure all items are processed
     
@@ -79,29 +82,42 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
             return;
         }
         
+        // Separate lists for results and items to update
+        Map<Id, MatchingResult> itemResults = new Map<Id, MatchingResult>();
         List<Scope3PcmtItem> itemsToUpdate = new List<Scope3PcmtItem>();
+        // Cache entries to save after all callouts are done
+        List<CacheEntry> cacheEntriesToSave = new List<CacheEntry>();
         Integer itemsProcessedInBatch = 0;
         
-        // Process items (respecting callout limits)
+        System.debug('Starting batch execution with ' + items.size() + ' items. Current callouts: ' + Limits.getCallouts() + ', CPU time: ' + Limits.getCpuTime());
+        
+        // PHASE 1: Make all LLM calls first (no DML operations)
         for (Scope3PcmtItem item : items) {
+            System.debug('Processing item ' + (itemsProcessedInBatch + 1) + ' of ' + items.size() + ': ' + item.Id);
+            
             // Check governor limits
             if (Limits.getCallouts() >= 90) {
-                System.debug('Approaching callout limit. Stopping batch execution. Processed ' + itemsProcessedInBatch + ' items.');
+                System.debug('Approaching callout limit (' + Limits.getCallouts() + '). Stopping batch execution. Processed ' + itemsProcessedInBatch + ' items.');
                 break;
             }
             
-            if (Limits.getCpuTime() >= 9000) {
-                System.debug('Approaching CPU time limit. Stopping batch execution. Processed ' + itemsProcessedInBatch + ' items.');
-                break;
-            }
-            
-            // Limit items per execution to respect callout limits
+            // Limit items per execution to respect callout limits and CPU time
+            // This ensures we don't process too many items in a single execution
             if (itemsProcessedInBatch >= MAX_ITEMS_PER_EXECUTION) {
-                System.debug('Reached max items per execution limit. Processed ' + itemsProcessedInBatch + ' items.');
+                System.debug('Reached max items per execution limit (' + MAX_ITEMS_PER_EXECUTION + '). Processed ' + itemsProcessedInBatch + ' items.');
+                break;
+            }
+            
+            // Safety check: Stop if approaching CPU time limit (Batch Apex has 60 seconds)
+            // This should rarely trigger with MAX_ITEMS_PER_EXECUTION = 25, but provides safety net
+            if (Limits.getCpuTime() >= 55000) {
+                System.debug('WARNING: Approaching CPU time limit (' + Limits.getCpuTime() + '). Stopping batch execution. Processed ' + itemsProcessedInBatch + ' items.');
+                System.debug('Consider reducing MAX_ITEMS_PER_EXECUTION if this occurs frequently.');
                 break;
             }
             
             try {
+                System.debug('Starting try block for item: ' + item.Id);
                 // Generate category hash for deduplication
                 String categoryHash = generateCategoryHash(
                     item.SpendingCategory1,
@@ -124,25 +140,47 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                 }
                 
                 // Step 2: Check Response Cache (Database) - if not found in deduplication map
+                // NOTE: We skip cache updates during callout phase to avoid pending DML
+                // Cache updates will be handled after all callouts are complete
                 if (result == null) {
                     try {
-                        LLMService.LLMResponse cachedResponse = LLMResponseCache.getCachedResponse(
+                        // Query cache without updating (to avoid pending DML)
+                        String hash = generateCategoryHash(
                             item.SpendingCategory1,
                             item.SpendingCategory2,
-                            item.SpendingCategory3,
-                            pcmtEmssnFctrSetId
+                            item.SpendingCategory3
                         );
+                        List<LLM_Response_Cache__c> cached = [
+                            SELECT Suggested_NAICS__c, Confidence__c, Reasoning__c,
+                                   Alternative_NAICS_Codes__c
+                            FROM LLM_Response_Cache__c
+                            WHERE Category_Hash__c = :hash
+                            AND Factor_Set_ID__c = :pcmtEmssnFctrSetId
+                            LIMIT 1
+                        ];
                         
-                        if (cachedResponse != null && String.isNotBlank(cachedResponse.suggestedNaicsCode)) {
-                            // Found in cache - build result from cache
-                            result = buildMatchingResultFromCache(cachedResponse, item, pcmtEmssnFctrSetId);
+                        if (!cached.isEmpty()) {
+                            LLM_Response_Cache__c cache = cached[0];
+                            // Build LLMResponse from cache (without updating usage stats)
+                            LLMService.LLMResponse cachedResponse = new LLMService.LLMResponse();
+                            cachedResponse.suggestedNaicsCode = cache.Suggested_NAICS__c;
+                            cachedResponse.confidence = cache.Confidence__c;
+                            cachedResponse.reasoning = cache.Reasoning__c;
+                            if (String.isNotBlank(cache.Alternative_NAICS_Codes__c)) {
+                                cachedResponse.alternativeNaicsCodes = cache.Alternative_NAICS_Codes__c.split(',');
+                            }
                             
-                            if (result != null) {
-                                // Store in deduplication map for future items in this batch
-                                categoryHashToResult.put(categoryHash, result);
-                                fromCache = true;
-                                totalCached++;
-                                System.debug('Cache hit for item: ' + item.Id);
+                            if (cachedResponse != null && String.isNotBlank(cachedResponse.suggestedNaicsCode)) {
+                                // Found in cache - build result from cache
+                                result = buildMatchingResultFromCache(cachedResponse, item, pcmtEmssnFctrSetId);
+                                
+                                if (result != null) {
+                                    // Store in deduplication map for future items in this batch
+                                    categoryHashToResult.put(categoryHash, result);
+                                    fromCache = true;
+                                    totalCached++;
+                                    System.debug('Cache hit for item: ' + item.Id);
+                                }
                             }
                         }
                     } catch (Exception cacheEx) {
@@ -153,42 +191,62 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                 
                 // Step 3: Call LLM (if not found in deduplication map or cache)
                 if (result == null) {
-                    // Call the matching service (which will handle LLM call and cache save)
+                    System.debug('Calling LLM for item: ' + item.Id + ', Categories: ' + 
+                                item.SpendingCategory1 + ' | ' + item.SpendingCategory2 + ' | ' + item.SpendingCategory3);
+                    // Call the matching service (cache save is deferred to avoid pending DML)
                     result = USEEIOMatchingService.matchSpendItemToFactorInternal(item, summary);
                     totalLLMCalls++;
+                    
+                    if (result != null) {
+                        System.debug('LLM result for item ' + item.Id + ': status=' + result.status + 
+                                    ', confidence=' + result.confidenceScore + 
+                                    ', error=' + result.errorMessage);
+                        
+                        // Collect cache entry to save later (after all callouts)
+                        if (result.status == 'MATCHED' || result.status == 'REQUIRES_REVIEW') {
+                            // Get the LLM response from the result to save to cache
+                            // We'll need to reconstruct it from the result
+                            LLMService.LLMResponse llmResponseToCache = new LLMService.LLMResponse();
+                            llmResponseToCache.suggestedNaicsCode = result.recommendedNaicsCode;
+                            llmResponseToCache.confidence = result.confidenceScore >= 0.7 ? 'HIGH' : 
+                                                           (result.confidenceScore >= 0.5 ? 'MEDIUM' : 'LOW');
+                            llmResponseToCache.reasoning = result.reasoning;
+                            
+                            // Store cache entry info for later save
+                            CacheEntry cacheEntry = new CacheEntry();
+                            cacheEntry.cat1 = item.SpendingCategory1;
+                            cacheEntry.cat2 = item.SpendingCategory2;
+                            cacheEntry.cat3 = item.SpendingCategory3;
+                            cacheEntry.factorSetId = pcmtEmssnFctrSetId;
+                            cacheEntry.response = llmResponseToCache;
+                            cacheEntriesToSave.add(cacheEntry);
+                        }
+                    } else {
+                        System.debug('LLM result for item ' + item.Id + ': result is null');
+                    }
                     
                     // Store in deduplication map for future items in this batch
                     if (result != null) {
                         categoryHashToResult.put(categoryHash, result);
                         System.debug('LLM call made for item: ' + item.Id);
+                    } else {
+                        System.debug('ERROR: LLM result is null for item: ' + item.Id);
                     }
                 }
                 
-                // Step 4: Process result
+                // Step 4: Store result for later processing (don't update item yet - avoid pending DML)
                 if (result != null) {
-                    // Auto-apply high confidence matches
-                    if (result.status == 'MATCHED' && result.confidenceScore >= CONFIDENCE_THRESHOLD) {
-                        item.PcmtEmssnFctrSetItemId = result.recommendedFactorId;
-                        item.Match_Confidence_Score__c = result.confidenceScore;
-                        item.Match_Reasoning__c = result.reasoning;
-                        item.Match_Source__c = 'AI Suggested';
-                        itemsToUpdate.add(item);
-                        totalMatched++;
-                    } else {
-                        // Low confidence or no match - needs review
-                        item.Review_Status__c = 'Pending Review';
-                        itemsToUpdate.add(item);
-                        totalNeedsReview++;
-                    }
+                    itemResults.put(item.Id, result);
                 } else {
-                    // No result - needs review
-                    item.Review_Status__c = 'Pending Review';
-                    itemsToUpdate.add(item);
-                    totalNeedsReview++;
+                    // Create a NO_MATCH result for items with no result
+                    MatchingResult noMatchResult = new MatchingResult(item.Id, 'NO_MATCH');
+                    noMatchResult.errorMessage = 'No matching result returned';
+                    itemResults.put(item.Id, noMatchResult);
                 }
                 
                 totalProcessed++;
                 itemsProcessedInBatch++;
+                System.debug('Successfully processed item ' + item.Id + '. Total processed in batch: ' + itemsProcessedInBatch);
                 
             } catch (Exception e) {
                 // Log error but continue processing other items
@@ -199,7 +257,67 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
             }
         }
         
-        // Batch update items
+        // PHASE 2: Save cache entries (all callouts are done, safe to do DML)
+        System.debug('All LLM calls completed. Saving ' + cacheEntriesToSave.size() + ' cache entries.');
+        for (CacheEntry cacheEntry : cacheEntriesToSave) {
+            try {
+                LLMResponseCache.saveResponse(
+                    cacheEntry.cat1,
+                    cacheEntry.cat2,
+                    cacheEntry.cat3,
+                    cacheEntry.factorSetId,
+                    cacheEntry.response
+                );
+            } catch (Exception cacheEx) {
+                System.debug('Failed to save cache entry: ' + cacheEx.getMessage());
+            }
+        }
+        
+        // PHASE 3: Now update all items based on results (all callouts and cache saves are done)
+        System.debug('All cache saves completed. Now updating ' + itemResults.size() + ' items.');
+        for (Scope3PcmtItem item : items) {
+            MatchingResult result = itemResults.get(item.Id);
+            if (result == null) {
+                // No result - needs review
+                System.debug('No result for item: ' + item.Id + ' - marking for review');
+                item.Review_Status__c = 'Pending Review';
+                itemsToUpdate.add(item);
+                totalNeedsReview++;
+                continue;
+            }
+            
+            System.debug('Processing result for item ' + item.Id + ': status=' + result.status + 
+                        ', confidence=' + result.confidenceScore + ', threshold=' + CONFIDENCE_THRESHOLD);
+            
+            // Auto-apply high confidence matches
+            if (result.status == 'MATCHED' && result.confidenceScore >= CONFIDENCE_THRESHOLD) {
+                System.debug('Auto-matching item ' + item.Id + ' with confidence ' + result.confidenceScore);
+                item.PcmtEmssnFctrSetItemId = result.recommendedFactorId;
+                item.Match_Confidence_Score__c = result.confidenceScore;
+                item.Match_Reasoning__c = result.reasoning;
+                item.Match_Source__c = 'AI Suggested';
+                item.Review_Status__c = 'Passed Confidence Match'; // Mark as passed - no manual review needed
+                itemsToUpdate.add(item);
+                totalMatched++;
+            } else {
+                // Low confidence or no match - needs review
+                System.debug('Item ' + item.Id + ' needs review: status=' + result.status + 
+                            ', confidence=' + result.confidenceScore + 
+                            ', error=' + result.errorMessage);
+                item.Review_Status__c = 'Pending Review';
+                // Still save confidence and reasoning if available
+                if (result.confidenceScore != null) {
+                    item.Match_Confidence_Score__c = result.confidenceScore;
+                }
+                if (String.isNotBlank(result.reasoning)) {
+                    item.Match_Reasoning__c = result.reasoning;
+                }
+                itemsToUpdate.add(item);
+                totalNeedsReview++;
+            }
+        }
+        
+        // Batch update items (all callouts and cache saves are done, safe to do DML)
         if (!itemsToUpdate.isEmpty()) {
             try {
                 Database.SaveResult[] saveResults = Database.update(itemsToUpdate, false);
@@ -277,6 +395,17 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                 System.debug('Failed to update error status: ' + updateEx.getMessage());
             }
         }
+    }
+    
+    /**
+     * @description Inner class to hold cache entry information for deferred saving
+     */
+    private class CacheEntry {
+        String cat1;
+        String cat2;
+        String cat3;
+        Id factorSetId;
+        LLMService.LLMResponse response;
     }
     
     /**

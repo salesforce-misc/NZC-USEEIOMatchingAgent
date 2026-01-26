@@ -23,6 +23,7 @@ private class KeywordMatchingServiceTest {
         
         // Accounting services
         testFactors.add(new PcmtEmssnFctrSetItem(
+            Name = '541211 - Accounting Services',
             PcmtEmssnFctrSetId = testFactorSet.Id,
             EconomicSectorCode = '541211',
             EconomicSector = 'Accounting Services',
@@ -32,6 +33,7 @@ private class KeywordMatchingServiceTest {
         
         // IT consulting
         testFactors.add(new PcmtEmssnFctrSetItem(
+            Name = '541511 - Custom Computer Programming Services',
             PcmtEmssnFctrSetId = testFactorSet.Id,
             EconomicSectorCode = '541511',
             EconomicSector = 'Custom Computer Programming Services',
@@ -41,6 +43,7 @@ private class KeywordMatchingServiceTest {
         
         // Office supplies
         testFactors.add(new PcmtEmssnFctrSetItem(
+            Name = '453210 - Office Supplies and Stationery Stores',
             PcmtEmssnFctrSetId = testFactorSet.Id,
             EconomicSectorCode = '453210',
             EconomicSector = 'Office Supplies and Stationery Stores',
@@ -50,6 +53,7 @@ private class KeywordMatchingServiceTest {
         
         // Manufacturing
         testFactors.add(new PcmtEmssnFctrSetItem(
+            Name = '311111 - Dog and Cat Food Manufacturing',
             PcmtEmssnFctrSetId = testFactorSet.Id,
             EconomicSectorCode = '311111',
             EconomicSector = 'Dog and Cat Food Manufacturing',

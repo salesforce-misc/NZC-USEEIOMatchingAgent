@@ -31,7 +31,8 @@ private class LLMServiceTest {
             'Accounting Services',
             'Financial Consulting',
             null,
-            new List<String>{'541211', '541219'}
+            new List<String>{'541211', '541219'},
+            null
         );
         Test.stopTest();
         

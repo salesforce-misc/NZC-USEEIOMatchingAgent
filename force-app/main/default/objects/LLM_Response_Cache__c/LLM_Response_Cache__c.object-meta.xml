@@ -46,7 +46,6 @@
     <description>Stores cached LLM responses for category combinations to reduce API costs. Cache persists across bulk processing runs.</description>
     <enableActivities>false</enableActivities>
     <enableBulkApi>true</enableBulkApi>
-    <enableChangeDataCapture>false</enableChangeDataCapture>
     <enableFeeds>false</enableFeeds>
     <enableHistory>false</enableHistory>
     <enableLicensing>false</enableLicensing>
@@ -57,7 +56,6 @@
     <externalSharingModel>Private</externalSharingModel>
     <label>LLM Response Cache</label>
     <nameField>
-        <displayFormat>LLM-{Category_Hash__c}</displayFormat>
         <label>Cache Entry Name</label>
         <type>Text</type>
     </nameField>

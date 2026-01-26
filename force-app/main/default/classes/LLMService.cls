@@ -19,20 +19,89 @@ public class LLMService {
         String category1,
         String category2,
         String category3,
-        List<String> candidateCodes
+        List<String> candidateCodes,
+        Map<String, String> candidateCodeDescriptions
     ) {
+        // Handle null candidateCodeDescriptions
+        if (candidateCodeDescriptions == null) {
+            candidateCodeDescriptions = new Map<String, String>();
+        }
         try {
-            // Call LLM via Agentforce Models API using Prompt Builder template
-            // Pass variables directly for template substitution
-            String llmResponseJson = callLLMOpenConnector(category1, category2, category3, candidateCodes);
+            // Use Models API directly
+            // CRITICAL ISSUE: Grounding is NOT enabled with this approach
+            // The Models API doesn't support explicit grounding properties
+            // We're only mentioning Data Library in prompt text, which doesn't actually enable grounding
+            // This means the LLM doesn't have access to the NAICS PDF definitions
+            System.debug('Calling Models API directly');
+            System.debug('WARNING: Grounding is NOT enabled. LLM does not have access to Data Library.');
+            System.debug('The LLM is working from its training data only, not from the NAICS PDF.');
+            
+            // Build prompt - include candidate codes and their descriptions from factor set
+            // Without grounding, we provide context from the factor set itself
+            String promptText = buildPromptWithGrounding(category1, category2, category3, candidateCodes, candidateCodeDescriptions);
+            
+            // Create the request
+            aiplatform.ModelsAPI.createGenerations_Request request = new aiplatform.ModelsAPI.createGenerations_Request();
+            request.modelName = 'sfdc_ai__DefaultOpenAIGPT4OmniMini';
+            
+            // Create request body
+            aiplatform.ModelsAPI_GenerationRequest requestBody = new aiplatform.ModelsAPI_GenerationRequest();
+            requestBody.prompt = promptText;
+            request.body = requestBody;
+            
+            // TODO: Enable grounding if property becomes available
+            // Grounding may need to be configured at the model level in Setup
+            // Or we may need to use Prompt Builder template (but retriever issue prevents this)
+            
+            System.debug('Calling Models API with prompt length: ' + promptText.length());
+            System.debug('Callout limit before API call: ' + Limits.getCallouts() + ' of ' + Limits.getLimitCallouts());
+            
+            // Make the request
+            aiplatform.ModelsAPI modelsAPI = new aiplatform.ModelsAPI();
+            System.debug('About to call modelsAPI.createGenerations for categories: ' + category1 + ' | ' + category2 + ' | ' + category3);
+            aiplatform.ModelsAPI.createGenerations_Response response = modelsAPI.createGenerations(request);
+            System.debug('Models API call completed successfully. Callout limit after: ' + Limits.getCallouts());
+            
+            // Extract the generated text
+            if (response.Code200 == null || response.Code200.generation == null) {
+                LLMResponse errorResponse = new LLMResponse();
+                errorResponse.errorMessage = 'Models API returned unexpected response structure: ' + JSON.serialize(response);
+                errorResponse.confidence = 'LOW';
+                return errorResponse;
+            }
+            
+            String llmResponseJson = response.Code200.generation.generatedText;
+            System.debug('LLM Response JSON: ' + llmResponseJson);
             
             // Parse and validate response
-            return parseLLMResponse(llmResponseJson);
+            LLMResponse parsedResponse = parseLLMResponse(llmResponseJson);
+            System.debug('Parsed response - NAICS: ' + parsedResponse.suggestedNaicsCode + ', Confidence: ' + parsedResponse.confidence);
+            if (String.isNotBlank(parsedResponse.errorMessage)) {
+                System.debug('Parse error: ' + parsedResponse.errorMessage);
+            }
+            return parsedResponse;
             
-        } catch (Exception e) {
-            // Return error response
+        } catch (aiplatform.ModelsAPI.createGenerations_ResponseException e) {
+            System.debug('ERROR: ModelsAPI ResponseException caught: ' + e.getMessage());
+            System.debug('Response code: ' + e.responseCode);
+            System.debug('Callout limit at exception: ' + Limits.getCallouts() + ' of ' + Limits.getLimitCallouts());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            
             LLMResponse errorResponse = new LLMResponse();
-            errorResponse.errorMessage = 'LLM call failed: ' + e.getMessage();
+            errorResponse.errorMessage = 'Models API call failed: ' + e.getMessage() + ' (Response code: ' + e.responseCode + ')';
+            errorResponse.confidence = 'LOW';
+            return errorResponse;
+        } catch (Exception e) {
+            // Return error response with full details
+            System.debug('ERROR: Exception caught in LLMService: ' + e.getMessage());
+            System.debug('Exception type: ' + e.getTypeName());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            System.debug('Line number: ' + e.getLineNumber());
+            System.debug('Callout limit at exception: ' + Limits.getCallouts() + ' of ' + Limits.getLimitCallouts());
+            
+            LLMResponse errorResponse = new LLMResponse();
+            errorResponse.errorMessage = 'LLM call failed: ' + e.getMessage() + 
+                ' (Type: ' + e.getTypeName() + ', Line: ' + e.getLineNumber() + ')';
             errorResponse.confidence = 'LOW';
             return errorResponse;
         }
@@ -91,86 +160,76 @@ public class LLMService {
     }
     
     /**
-     * @description Call LLM via Agentforce Models API with Data Library grounding using Prompt Builder template
-     * @description Uses Salesforce's managed models (GPT-4, Claude, etc.) with native Data Library grounding
-     * @description Data Library (USEEIO_Reference) must be indexed and configured in the Prompt Builder template
-     * @param category1 First spending category
-     * @param category2 Second spending category
-     * @param category3 Third spending category
-     * @param candidateCodes Optional candidate NAICS codes from pre-filtering
-     * @return JSON response from LLM
+     * @description Build prompt text with explicit Data Library references to trigger grounding
+     * @description Uses Models API directly, bypassing Prompt Builder template retriever issues
+     * @description Includes candidate code descriptions from factor set since grounding isn't enabled
      */
-    private static String callLLMOpenConnector(
+    private static String buildPromptWithGrounding(
         String category1,
         String category2,
         String category3,
-        List<String> candidateCodes
+        List<String> candidateCodes,
+        Map<String, String> candidateCodeDescriptions
     ) {
-        // Prompt Builder template API name
-        String templateApiName = 'NAICS_Matching_Prompt';
+        String prompt = 'System: You are an expert in North American Industry Classification System (NAICS) 2017 codes. ';
+        prompt += 'Your task is to analyze spending category descriptions from corporate procurement systems ';
+        prompt += 'and identify the most appropriate 6-digit NAICS industry code.\n\n';
         
-        try {
-            // Query the Prompt Builder template to verify it exists and get its structure
-            List<Prompt> prompts = [
-                SELECT Id, DeveloperName 
-                FROM Prompt 
-                WHERE DeveloperName = :templateApiName 
-                LIMIT 1
-            ];
-            
-            if (prompts.isEmpty()) {
-                throw new LLMServiceException('Prompt Builder template "' + templateApiName + '" not found. ' +
-                    'Please create it first in Prompt Builder (see PROMPT_BUILDER_SETUP.md). ' +
-                    'Make sure the Developer Name is exactly "' + templateApiName + '" (case-sensitive).');
-            }
-            
-            // TODO: Use Connect API to invoke the template directly
-            // The exact syntax may vary by org version. Check Prompt Builder for code examples.
-            // Expected approach:
-            // ConnectApi.EinsteinPromptTemplateGenerationsInput input = new ConnectApi.EinsteinPromptTemplateGenerationsInput();
-            // input.promptTemplateApiName = templateApiName; // or input.promptTemplate
-            // Map<String, ConnectApi.WrappedValue> inputParams = ...;
-            // ConnectApi.EinsteinPromptTemplateGenerationsRepresentation response = 
-            //     ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate(Network.getNetworkId(), input);
-            
-            // For now, using createGenerations as fallback
-            // NOTE: This doesn't actually invoke the template - it just sends a prompt
-            // The template's Knowledge Grounding won't be used with this approach
-            // We need to find the correct Connect API syntax to actually invoke the template
-            
-            aiplatform.ModelsAPI.createGenerations_Request request = new aiplatform.ModelsAPI.createGenerations_Request();
-            request.modelName = 'sfdc_ai__DefaultOpenAIGPT4OmniMini';
-            
-            aiplatform.ModelsAPI_GenerationRequest requestBody = new aiplatform.ModelsAPI_GenerationRequest();
-            
-            // Build prompt with variables (matching template structure)
-            // This is a temporary workaround until we find the correct template invocation syntax
-            String promptText = buildPromptWithVariables(category1, category2, category3, candidateCodes);
-            
-            requestBody.prompt = promptText;
-            request.body = requestBody;
-            
-            // Make request
-            aiplatform.ModelsAPI modelsAPI = new aiplatform.ModelsAPI();
-            aiplatform.ModelsAPI.createGenerations_Response response = modelsAPI.createGenerations(request);
-            
-            // Extract response text
-            if (response != null && response.Code200 != null && response.Code200.generation != null) {
-                String generatedText = response.Code200.generation.generatedText;
-                if (String.isNotBlank(generatedText)) {
-                    return generatedText;
-                } else {
-                    throw new LLMServiceException('Empty response from Models API');
-                }
-            } else {
-                throw new LLMServiceException('Invalid response structure from Models API');
-            }
-            
-        } catch (aiplatform.ModelsAPI.createGenerations_ResponseException e) {
-            throw new LLMServiceException('Models API call failed. Response code: ' + e.responseCode + '. Error: ' + e.getMessage());
-        } catch (Exception e) {
-            throw new LLMServiceException('Prompt Builder template call failed: ' + e.getMessage());
+        prompt += 'You have access to the NAICS 2017 Definition File in the Agentforce Data Library (USEEIO_Reference). ';
+        prompt += 'Search the Knowledge Library (USEEIO_Reference) for relevant NAICS code definitions based on the spending categories provided.\n\n';
+        
+        prompt += 'User: Analyze these spending categories:\n';
+        prompt += 'Category 1: ' + (String.isNotBlank(category1) ? category1 : '') + '\n';
+        prompt += 'Category 2: ' + (String.isNotBlank(category2) ? category2 : '') + '\n';
+        prompt += 'Category 3: ' + (String.isNotBlank(category3) ? category3 : '') + '\n\n';
+        
+        String candidateCodesStr = 'None provided';
+        if (candidateCodes != null && !candidateCodes.isEmpty()) {
+            candidateCodesStr = String.join(candidateCodes, ', ');
         }
+        prompt += 'Candidate NAICS codes to consider: ' + candidateCodesStr + '\n\n';
+        
+        // Include descriptions for candidate codes from the factor set
+        if (candidateCodeDescriptions != null && !candidateCodeDescriptions.isEmpty()) {
+            prompt += 'Here are the descriptions for the candidate codes from the emissions factor database:\n';
+            for (String code : candidateCodes) {
+                if (candidateCodeDescriptions.containsKey(code)) {
+                    prompt += '- ' + code + ': ' + candidateCodeDescriptions.get(code) + '\n';
+                }
+            }
+            prompt += '\n';
+        }
+        
+        prompt += 'CRITICAL: You MUST select a code from the candidate codes list above if any are provided. ';
+        prompt += 'These candidate codes are guaranteed to exist in the emissions factor database. ';
+        prompt += 'Do NOT suggest codes that are not in the candidate list.\n\n';
+        
+        prompt += 'Search the NAICS 2017 Definition File in the Knowledge Library (USEEIO_Reference) to find the most appropriate ';
+        prompt += '6-digit industry code. If candidate codes are provided, you MUST choose from those codes. ';
+        prompt += 'For each candidate code, retrieve its full definition including:\n';
+        prompt += '- Industry description\n';
+        prompt += '- Cross-references\n';
+        prompt += '- Examples\n';
+        prompt += '- What activities are included/excluded\n\n';
+        
+        prompt += 'Analyze the spending categories against the retrieved NAICS definitions. Match keywords and concepts ';
+        prompt += 'from the spending categories to the industry descriptions and examples. ';
+        if (candidateCodes != null && !candidateCodes.isEmpty()) {
+            prompt += 'You MUST select one of these candidate codes: ' + candidateCodesStr + '. ';
+        }
+        prompt += 'Select the 6-digit NAICS code that best represents the primary economic activity described by the spending categories.\n\n';
+        
+        prompt += 'CRITICAL: You must return ONLY valid JSON with no markdown, no code blocks, no explanations, and no additional text. ';
+        prompt += 'Return your response as a single JSON object:\n';
+        prompt += '{\n';
+        prompt += '  "suggestedNaicsCode": "6-digit code or null",\n';
+        prompt += '  "confidence": "HIGH|MEDIUM|LOW",\n';
+        prompt += '  "reasoning": "Detailed explanation referencing specific sections from the NAICS definition",\n';
+        prompt += '  "alternativeNaicsCodes": ["code1", "code2"],\n';
+        prompt += '  "uncertaintyFactors": ["factor1", "factor2"]\n';
+        prompt += '}';
+        
+        return prompt;
     }
     
     /**
@@ -255,19 +314,38 @@ public class LLMService {
             return response;
         }
         
+        // Clean the response - remove markdown code blocks if present
+        String cleanedResponse = jsonResponse.trim();
+        if (cleanedResponse.startsWith('```')) {
+            // Remove markdown code block markers
+            cleanedResponse = cleanedResponse.replaceAll('```json', '').replaceAll('```', '');
+            cleanedResponse = cleanedResponse.trim();
+        }
+        
+        System.debug('Cleaned JSON response: ' + cleanedResponse);
+        
         try {
-            Map<String, Object> jsonMap = (Map<String, Object>)JSON.deserializeUntyped(jsonResponse);
+            Map<String, Object> jsonMap = (Map<String, Object>)JSON.deserializeUntyped(cleanedResponse);
             
             // Parse suggested NAICS code
             if (jsonMap.containsKey('suggestedNaicsCode')) {
                 Object naicsObj = jsonMap.get('suggestedNaicsCode');
                 if (naicsObj != null) {
                     String naicsCode = String.valueOf(naicsObj);
-                    // Validate format (should be 6 digits)
-                    if (naicsCode.length() == 6 && naicsCode.isNumeric()) {
-                        response.suggestedNaicsCode = naicsCode;
+                    // Handle null string representation
+                    if (naicsCode.toLowerCase() != 'null' && naicsCode.trim().length() > 0) {
+                        // Validate format (should be 6 digits)
+                        if (naicsCode.length() == 6 && naicsCode.isNumeric()) {
+                            response.suggestedNaicsCode = naicsCode;
+                        } else {
+                            System.debug('Invalid NAICS code format: "' + naicsCode + '" (length: ' + naicsCode.length() + ')');
+                        }
+                    } else {
+                        System.debug('LLM returned null for suggestedNaicsCode');
                     }
                 }
+            } else {
+                System.debug('JSON response missing suggestedNaicsCode field');
             }
             
             // Parse confidence
@@ -309,7 +387,17 @@ public class LLMService {
             }
             
         } catch (Exception e) {
-            response.errorMessage = 'Failed to parse LLM response: ' + e.getMessage();
+            System.debug('JSON parsing exception: ' + e.getMessage());
+            System.debug('Stack trace: ' + e.getStackTraceString());
+            System.debug('Raw response that failed to parse: ' + jsonResponse);
+            response.errorMessage = 'Failed to parse LLM response: ' + e.getMessage() + 
+                '. Raw response: ' + (jsonResponse.length() > 500 ? jsonResponse.substring(0, 500) + '...' : jsonResponse);
+        }
+        
+        // If no NAICS code was parsed and no error was set, add a helpful message
+        if (String.isBlank(response.suggestedNaicsCode) && String.isBlank(response.errorMessage)) {
+            response.errorMessage = 'LLM did not return a valid NAICS code. Response: ' + 
+                (cleanedResponse.length() > 500 ? cleanedResponse.substring(0, 500) + '...' : cleanedResponse);
         }
         
         return response;
