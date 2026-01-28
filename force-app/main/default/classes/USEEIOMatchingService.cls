@@ -711,7 +711,8 @@ public class USEEIOMatchingService {
             // Get items with no match or low confidence that haven't been reviewed yet
             List<Scope3PcmtItem> items = [
                 SELECT Id, Name, SpendingCategory1, SpendingCategory2, SpendingCategory3,
-                       PcmtEmssnFctrSetItemId, Match_Confidence_Score__c, Match_Reasoning__c,
+                       PcmtEmssnFctrSetItemId, PcmtEmssnFctrSetItem.Name, 
+                       Match_Confidence_Score__c, Match_Reasoning__c,
                        Match_Source__c, Review_Status__c
                 FROM Scope3PcmtItem
                 WHERE ProcurementSummaryId = :scope3PcmtSummaryId
@@ -731,6 +732,88 @@ public class USEEIOMatchingService {
             System.debug('Error getting items needing review: ' + e.getMessage());
             return new List<Scope3PcmtItem>();
         }
+    }
+    
+    /**
+     * @description Search for PcmtEmssnFctrSetItem records filtered by parent PcmtEmssnFctrSet
+     * This method is used by the lookup field in the LWC to filter results
+     * @param searchTerm Search term (searches in Name and EconomicSectorCode)
+     * @param pcmtEmssnFctrSetId The parent PcmtEmssnFctrSet ID to filter by
+     * @return List of matching PcmtEmssnFctrSetItem records with Id and Name
+     */
+    @AuraEnabled(cacheable=true)
+    public static List<Map<String, Object>> searchFactorSetItems(String searchTerm, Id pcmtEmssnFctrSetId) {
+        List<Map<String, Object>> results = new List<Map<String, Object>>();
+        
+        try {
+            if (pcmtEmssnFctrSetId == null) {
+                return results;
+            }
+            
+            String searchPattern = '%' + (String.isNotBlank(searchTerm) ? searchTerm : '') + '%';
+            
+            // Query PcmtEmssnFctrSetItem records filtered by parent and search term
+            List<PcmtEmssnFctrSetItem> items = [
+                SELECT Id, Name, EconomicSectorCode, EconomicSector
+                FROM PcmtEmssnFctrSetItem
+                WHERE PcmtEmssnFctrSetId = :pcmtEmssnFctrSetId
+                AND (
+                    Name LIKE :searchPattern
+                    OR EconomicSectorCode LIKE :searchPattern
+                    OR EconomicSector LIKE :searchPattern
+                )
+                ORDER BY Name
+                LIMIT 50
+            ];
+            
+            // Convert to map format for lookup field
+            for (PcmtEmssnFctrSetItem item : items) {
+                Map<String, Object> itemMap = new Map<String, Object>();
+                itemMap.put('Id', item.Id);
+                itemMap.put('Name', item.Name);
+                itemMap.put('EconomicSectorCode', item.EconomicSectorCode);
+                itemMap.put('EconomicSector', item.EconomicSector);
+                results.add(itemMap);
+            }
+            
+        } catch (Exception e) {
+            System.debug('Error searching factor set items: ' + e.getMessage());
+        }
+        
+        return results;
+    }
+    
+    /**
+     * @description Update the PcmtEmssnFctrSetItemId on a Scope3PcmtItem record
+     * @param itemId Scope3PcmtItem record ID
+     * @param factorSetItemId PcmtEmssnFctrSetItem record ID to link
+     * @return Map with success status
+     */
+    @AuraEnabled(cacheable=false)
+    public static Map<String, Object> updateItemFactorSetItem(Id itemId, Id factorSetItemId) {
+        Map<String, Object> response = new Map<String, Object>();
+        
+        try {
+            if (itemId == null) {
+                response.put('success', false);
+                response.put('error', 'Item ID is required');
+                return response;
+            }
+            
+            Scope3PcmtItem item = new Scope3PcmtItem(Id = itemId);
+            item.PcmtEmssnFctrSetItemId = factorSetItemId;
+            
+            update item;
+            
+            response.put('success', true);
+            
+        } catch (Exception e) {
+            response.put('success', false);
+            response.put('error', 'Failed to update item: ' + e.getMessage());
+            System.debug('Error updating item factor set item: ' + e.getMessage());
+        }
+        
+        return response;
     }
     
     /**

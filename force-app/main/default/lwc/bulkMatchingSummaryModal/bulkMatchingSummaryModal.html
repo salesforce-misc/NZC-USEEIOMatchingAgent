@@ -1,0 +1,15 @@
+<template>
+    <lightning-modal-header label="Bulk Emissions Factor Matching">
+    </lightning-modal-header>
+    
+    <lightning-modal-body>
+        <c-bulk-matching-summary record-id={recordId}></c-bulk-matching-summary>
+    </lightning-modal-body>
+    
+    <lightning-modal-footer>
+        <lightning-button
+            label="Close"
+            onclick={handleClose}>
+        </lightning-button>
+    </lightning-modal-footer>
+</template>

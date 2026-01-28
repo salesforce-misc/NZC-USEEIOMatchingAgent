@@ -1,5 +1,14 @@
 <template>
     <lightning-card title="Bulk Emissions Factor Matching" icon-name="standard:data_mapping">
+        <div slot="actions" class="slds-p-right_small">
+            <lightning-button-icon
+                icon-name={fullScreenIcon}
+                alternative-text={fullScreenLabel}
+                title={fullScreenLabel}
+                onclick={handleToggleFullScreen}
+                variant="border-filled">
+            </lightning-button-icon>
+        </div>
         <div class="slds-p-around_medium">
             
             <!-- Status Section -->
@@ -15,25 +24,39 @@
                             variant="brand"
                             icon-name="utility:search"
                             onclick={handleStartMatching}
-                            disabled={isStartButtonDisabled}>
+                            disabled={isStartButtonDisabled}
+                            class="slds-m-right_x-small">
+                        </lightning-button>
+                        <lightning-button
+                            label="Refresh"
+                            variant="neutral"
+                            icon-name="utility:refresh"
+                            onclick={handleRefresh}
+                            disabled={isLoading}
+                            title="Refresh status and data">
                         </lightning-button>
                     </div>
                 </div>
                 
                 <!-- Progress Bar (if in progress) -->
-                <template if:true={matchingStatus}>
-                    <template if:true={matchingStatus.inProgress}>
-                        <div class="slds-m-top_small">
-                            <div class="slds-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progressPercentage}>
-                                <span class="slds-progress-bar__value" style={progressBarStyle}>
-                                    <span class="slds-assistive-text">{progressPercentage}% complete</span>
-                                </span>
-                            </div>
+                <template if:true={isInProgress}>
+                    <div class="slds-m-top_small">
+                        <div class="slds-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progressPercentage}>
+                            <span class="slds-progress-bar__value" style={progressBarStyle}>
+                                <span class="slds-assistive-text">{progressPercentage}% complete</span>
+                            </span>
+                        </div>
+                        <template if:true={matchingStatus}>
                             <p class="slds-text-body_small slds-m-top_x-small">
                                 Processing {matchingStatus.processedItems} of {matchingStatus.totalItems} items...
                             </p>
-                        </div>
-                    </template>
+                        </template>
+                        <template if:false={matchingStatus}>
+                            <p class="slds-text-body_small slds-m-top_x-small">
+                                Starting bulk matching...
+                            </p>
+                        </template>
+                    </div>
                 </template>
             </div>
             
@@ -148,9 +171,41 @@
                         data={itemsNeedingReview}
                         columns={reviewTableColumns}
                         onrowselection={handleRowSelection}
-                        selected-rows={selectedRows}>
+                        onrowaction={handleRowAction}
+                        selected-rows={selectedRows}
+                        wrap-text-max-width="100%">
                     </lightning-datatable>
                 </div>
+            </template>
+            
+            <!-- Lookup Modal -->
+            <template if:true={showLookupModal}>
+                <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_medium" aria-labelledby="lookup-modal-heading" aria-modal="true">
+                    <div class="slds-modal__container">
+                        <header class="slds-modal__header">
+                            <button class="slds-button slds-button_icon slds-modal__close slds-button_icon-inverse" title="Close" onclick={closeLookupModal}>
+                                <lightning-icon icon-name="utility:close" alternative-text="close" size="small"></lightning-icon>
+                                <span class="slds-assistive-text">Close</span>
+                            </button>
+                            <h2 id="lookup-modal-heading" class="slds-modal__title slds-hyphenate">Select Emissions Factor</h2>
+                        </header>
+                        <div class="slds-modal__content slds-p-around_medium" id="lookup-modal-content">
+                            <template if:true={currentEditingItem}>
+                                <c-factor-set-item-lookup
+                                    value={currentEditingItem.PcmtEmssnFctrSetItemId}
+                                    factor-set-id={factorSetId}
+                                    item-id={currentEditingItem.Id}
+                                    display-name={currentEditingItem.factorSetItemDisplayName}
+                                    onchange={handleLookupChange}>
+                                </c-factor-set-item-lookup>
+                            </template>
+                        </div>
+                        <footer class="slds-modal__footer">
+                            <lightning-button variant="neutral" label="Cancel" onclick={closeLookupModal}></lightning-button>
+                        </footer>
+                    </div>
+                </section>
+                <div class="slds-backdrop slds-backdrop_open"></div>
             </template>
             
             <!-- No Items Needing Review -->
