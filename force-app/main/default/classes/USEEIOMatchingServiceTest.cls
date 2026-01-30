@@ -453,4 +453,224 @@ private class USEEIOMatchingServiceTest {
         System.assertNotEquals(null, response, 'Response should not be null');
         System.assert(!(Boolean)response.get('success'), 'Should fail with null result');
     }
+    
+    @isTest
+    static void testIsLikelyEeioCode_ValidNaicsCode() {
+        Test.startTest();
+        Boolean result1 = USEEIOMatchingService.isLikelyEeioCode('541211'); // Valid NAICS (sector 54)
+        Boolean result2 = USEEIOMatchingService.isLikelyEeioCode('111110'); // Valid NAICS (sector 11)
+        Boolean result3 = USEEIOMatchingService.isLikelyEeioCode('923110'); // Valid NAICS (sector 92)
+        Test.stopTest();
+        
+        System.assertEquals(false, result1, 'Valid NAICS code should not be detected as EEIO');
+        System.assertEquals(false, result2, 'Valid NAICS code (sector 11) should not be detected as EEIO');
+        System.assertEquals(false, result3, 'Valid NAICS code (sector 92) should not be detected as EEIO');
+    }
+    
+    @isTest
+    static void testIsLikelyEeioCode_EeioCodeBelowRange() {
+        Test.startTest();
+        Boolean result1 = USEEIOMatchingService.isLikelyEeioCode('051234'); // Sector 05 < 11
+        Boolean result2 = USEEIOMatchingService.isLikelyEeioCode('101234'); // Sector 10 < 11
+        Test.stopTest();
+        
+        System.assertEquals(true, result1, 'Code with sector < 11 should be detected as EEIO');
+        System.assertEquals(true, result2, 'Code with sector 10 should be detected as EEIO');
+    }
+    
+    @isTest
+    static void testIsLikelyEeioCode_EeioCodeAboveRange() {
+        Test.startTest();
+        Boolean result1 = USEEIOMatchingService.isLikelyEeioCode('931234'); // Sector 93 > 92
+        Boolean result2 = USEEIOMatchingService.isLikelyEeioCode('991234'); // Sector 99 > 92
+        Test.stopTest();
+        
+        System.assertEquals(true, result1, 'Code with sector > 92 should be detected as EEIO');
+        System.assertEquals(true, result2, 'Code with sector 99 should be detected as EEIO');
+    }
+    
+    @isTest
+    static void testIsLikelyEeioCode_InvalidFormats() {
+        Test.startTest();
+        Boolean result1 = USEEIOMatchingService.isLikelyEeioCode(null);
+        Boolean result2 = USEEIOMatchingService.isLikelyEeioCode('');
+        Boolean result3 = USEEIOMatchingService.isLikelyEeioCode('12345'); // Only 5 digits
+        Boolean result4 = USEEIOMatchingService.isLikelyEeioCode('1234567'); // 7 digits
+        Boolean result5 = USEEIOMatchingService.isLikelyEeioCode('ABC123'); // Non-numeric
+        Test.stopTest();
+        
+        System.assertEquals(false, result1, 'Null code should not be detected as EEIO');
+        System.assertEquals(false, result2, 'Empty code should not be detected as EEIO');
+        System.assertEquals(false, result3, 'Invalid format (5 digits) should not be detected as EEIO');
+        System.assertEquals(false, result4, 'Invalid format (7 digits) should not be detected as EEIO');
+        System.assertEquals(false, result5, 'Non-numeric code should not be detected as EEIO');
+    }
+    
+    @isTest
+    static void testMatchSpendItemToFactorInternal_EeioCodeDetection() {
+        // Create test item and summary
+        Scope3PcmtSummary testSummary = new Scope3PcmtSummary(
+            Id = EXISTING_SUMMARY_ID,
+            PcmtEmssnFctrId = EXISTING_FACTOR_SET_ID
+        );
+        
+        Scope3PcmtItem testItem = new Scope3PcmtItem(
+            Name = 'Test Procurement Item',
+            ProcurementSummaryId = EXISTING_SUMMARY_ID,
+            SpendingCategory1 = 'Test Category',
+            SpendingCategory2 = 'Test Subcategory',
+            SpendingCategory3 = 'Test Detail',
+            SpentAmount = 10000,
+            SpentDate = Date.today()
+        );
+        insert testItem;
+        
+        // Test will fail LLM callout (expected in test context) and return NO_MATCH
+        // To test EEIO detection, we'll test the isLikelyEeioCode method directly
+        // and verify the logic path through unit tests of that method
+        Test.startTest();
+        MatchingResult result = USEEIOMatchingService.matchSpendItemToFactorInternal(testItem, testSummary);
+        Test.stopTest();
+        
+        // In test context, LLM callout will fail, so we get NO_MATCH
+        // The EEIO detection logic is tested separately via isLikelyEeioCode tests
+        System.assertNotEquals(null, result, 'Result should not be null');
+    }
+    
+    @isTest
+    static void testEeioDetectionInMatchLogic() {
+        // Test the EEIO detection logic by directly testing the helper method
+        // and verifying it correctly identifies codes outside NAICS range
+        
+        Test.startTest();
+        // Test codes that should be detected as EEIO
+        Boolean eeio1 = USEEIOMatchingService.isLikelyEeioCode('051234'); // Sector 05 < 11
+        Boolean eeio2 = USEEIOMatchingService.isLikelyEeioCode('931234'); // Sector 93 > 92
+        
+        // Test codes that should NOT be detected as EEIO (valid NAICS range)
+        Boolean naics1 = USEEIOMatchingService.isLikelyEeioCode('541211'); // Sector 54 (valid)
+        Boolean naics2 = USEEIOMatchingService.isLikelyEeioCode('111110'); // Sector 11 (valid, lower bound)
+        Boolean naics3 = USEEIOMatchingService.isLikelyEeioCode('923110'); // Sector 92 (valid, upper bound)
+        Test.stopTest();
+        
+        System.assertEquals(true, eeio1, 'Code with sector < 11 should be detected as EEIO');
+        System.assertEquals(true, eeio2, 'Code with sector > 92 should be detected as EEIO');
+        System.assertEquals(false, naics1, 'Valid NAICS code should not be detected as EEIO');
+        System.assertEquals(false, naics2, 'NAICS code at lower bound (11) should not be detected as EEIO');
+        System.assertEquals(false, naics3, 'NAICS code at upper bound (92) should not be detected as EEIO');
+    }
+    
+    @isTest
+    static void testCodeExistsInOtherFactorSet_CodeInLinkedSet() {
+        Id linkedFactorSetId = EXISTING_FACTOR_SET_ID;
+        
+        Test.startTest();
+        Boolean result = USEEIOMatchingService.codeExistsInOtherFactorSet('541211', linkedFactorSetId);
+        Test.stopTest();
+        
+        // Code exists in linked set, so should return false (not in OTHER sets)
+        System.assertEquals(false, result, 'Code in linked factor set should not be found in other sets');
+    }
+    
+    @isTest
+    static void testCodeExistsInOtherFactorSet_CodeNotInLinkedSet() {
+        Id linkedFactorSetId = EXISTING_FACTOR_SET_ID;
+        
+        // Create a different factor set with a different code
+        PcmtEmssnFctrSet otherFactorSet = new PcmtEmssnFctrSet(Name = 'Test EEIO Factor Set');
+        insert otherFactorSet;
+        
+        PcmtEmssnFctrSetItem otherFactor = new PcmtEmssnFctrSetItem(
+            Name = '231234 - Test EEIO Code',
+            PcmtEmssnFctrSetId = otherFactorSet.Id,
+            EconomicSectorCode = '231234',
+            EconomicSector = 'Test Sector',
+            TotScpe3EmssnPerMillionSpent = 100.0
+        );
+        insert otherFactor;
+        
+        Test.startTest();
+        Boolean result = USEEIOMatchingService.codeExistsInOtherFactorSet('231234', linkedFactorSetId);
+        Test.stopTest();
+        
+        // Code exists in other factor set but not linked one
+        System.assertEquals(true, result, 'Code in other factor set should be found');
+    }
+    
+    @isTest
+    static void testCodeExistsInOtherFactorSet_CodeNotInAnySet() {
+        Id linkedFactorSetId = EXISTING_FACTOR_SET_ID;
+        
+        Test.startTest();
+        Boolean result = USEEIOMatchingService.codeExistsInOtherFactorSet('999999', linkedFactorSetId);
+        Test.stopTest();
+        
+        System.assertEquals(false, result, 'Code not in any factor set should return false');
+    }
+    
+    @isTest
+    static void testCodeExistsInOtherFactorSet_InvalidParameters() {
+        Id linkedFactorSetId = EXISTING_FACTOR_SET_ID;
+        
+        Test.startTest();
+        Boolean result1 = USEEIOMatchingService.codeExistsInOtherFactorSet(null, linkedFactorSetId);
+        Boolean result2 = USEEIOMatchingService.codeExistsInOtherFactorSet('', linkedFactorSetId);
+        Boolean result3 = USEEIOMatchingService.codeExistsInOtherFactorSet('12345', linkedFactorSetId); // Invalid format
+        Boolean result4 = USEEIOMatchingService.codeExistsInOtherFactorSet('541211', null);
+        Test.stopTest();
+        
+        System.assertEquals(false, result1, 'Null code should return false');
+        System.assertEquals(false, result2, 'Empty code should return false');
+        System.assertEquals(false, result3, 'Invalid format should return false');
+        System.assertEquals(false, result4, 'Null factor set ID should return false');
+    }
+    
+    @isTest
+    static void testIsLikelyEeioCode_EnhancedWithOtherFactorSet() {
+        // Create a different factor set with a code that exists in valid NAICS range
+        PcmtEmssnFctrSet otherFactorSet = new PcmtEmssnFctrSet(Name = 'Test EEIO Factor Set');
+        insert otherFactorSet;
+        
+        PcmtEmssnFctrSetItem otherFactor = new PcmtEmssnFctrSetItem(
+            Name = '231234 - Test EEIO Code',
+            PcmtEmssnFctrSetId = otherFactorSet.Id,
+            EconomicSectorCode = '231234',
+            EconomicSector = 'Test Sector',
+            TotScpe3EmssnPerMillionSpent = 100.0
+        );
+        insert otherFactor;
+        
+        Id linkedFactorSetId = EXISTING_FACTOR_SET_ID;
+        
+        Test.startTest();
+        // Code is in valid NAICS range (23) but exists in other factor set, HIGH confidence
+        Boolean result1 = USEEIOMatchingService.isLikelyEeioCode('231234', 'HIGH', linkedFactorSetId);
+        
+        // Code is in valid NAICS range but exists in other factor set, MEDIUM confidence (should not detect)
+        Boolean result2 = USEEIOMatchingService.isLikelyEeioCode('231234', 'MEDIUM', linkedFactorSetId);
+        
+        // Code is in valid NAICS range (sector 22) but doesn't exist anywhere
+        Boolean result3 = USEEIOMatchingService.isLikelyEeioCode('221234', 'HIGH', linkedFactorSetId);
+        
+        // Code exists in linked factor set (should not detect as EEIO)
+        Boolean result4 = USEEIOMatchingService.isLikelyEeioCode('541211', 'HIGH', linkedFactorSetId);
+        Test.stopTest();
+        
+        System.assertEquals(true, result1, 'Code in other factor set with HIGH confidence should be detected as EEIO');
+        System.assertEquals(false, result2, 'Code in other factor set with MEDIUM confidence should not be detected');
+        System.assertEquals(false, result3, 'Code not in any factor set should not be detected');
+        System.assertEquals(false, result4, 'Code in linked factor set should not be detected as EEIO');
+    }
+    
+    @isTest
+    static void testIsLikelyEeioCode_EnhancedWithNullFactorSet() {
+        Test.startTest();
+        // Should fall back to sector range check when factor set ID is null
+        Boolean result1 = USEEIOMatchingService.isLikelyEeioCode('051234', 'HIGH', null);
+        Boolean result2 = USEEIOMatchingService.isLikelyEeioCode('541211', 'HIGH', null);
+        Test.stopTest();
+        
+        System.assertEquals(true, result1, 'Code outside range should be detected even with null factor set');
+        System.assertEquals(false, result2, 'Code in valid range with null factor set should not be detected');
+    }
 }

@@ -481,8 +481,58 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
         );
         
         if (matchingFactors.isEmpty()) {
-            result.errorMessage = 'No matching emissions factor found for cached NAICS code: ' + cachedResponse.suggestedNaicsCode;
-            result.reasoning = cachedResponse.reasoning;
+            // Enhanced EEIO detection: check sector range AND existence in other factor sets
+            Boolean isEeioCode = USEEIOMatchingService.isLikelyEeioCode(
+                cachedResponse.suggestedNaicsCode,
+                cachedResponse.confidence,
+                pcmtEmssnFctrSetId  // Pass the linked factor set ID
+            );
+            
+            if (isEeioCode) {
+                // Determine the specific reason for EEIO detection
+                String sectorStr = cachedResponse.suggestedNaicsCode.substring(0, 2);
+                Integer sector = Integer.valueOf(sectorStr);
+                Boolean isOutsideRange = sector < 11 || sector > 92;
+                Boolean existsInOtherFactorSet = USEEIOMatchingService.codeExistsInOtherFactorSet(
+                    cachedResponse.suggestedNaicsCode,
+                    pcmtEmssnFctrSetId
+                );
+                
+                if (isOutsideRange) {
+                    // Original case: sector outside NAICS range
+                    result.errorMessage = 'Cached response contains code ' + cachedResponse.suggestedNaicsCode + 
+                        ', which appears to be an EEIO (Economic Input-Output) code rather than a NAICS code. ' +
+                        'This code is not available in the selected emissions factor set, which uses NAICS codes. ' +
+                        'The LLM reasoning is preserved for reference.';
+                    result.reasoning = cachedResponse.reasoning + 
+                        '\n\n[Note: The LLM identified an EEIO code (' + cachedResponse.suggestedNaicsCode + 
+                        ') instead of a NAICS code. Please review the spending categories and select an appropriate NAICS code from the factor set.]';
+                } else if (existsInOtherFactorSet && cachedResponse.confidence == 'HIGH') {
+                    // New case: code exists in other factor sets but not in linked NAICS factor set
+                    result.errorMessage = 'Cached response contains code ' + cachedResponse.suggestedNaicsCode + 
+                        ', which appears to be an EEIO (Economic Input-Output) code rather than a NAICS code. ' +
+                        'While this code follows NAICS format, it exists in other emissions factor sets in the system but not in the selected factor set (which contains NAICS codes). ' +
+                        'The LLM was highly confident in this match, suggesting it may have identified an EEIO code. ' +
+                        'Please review the spending categories and select an appropriate NAICS code from the selected factor set.';
+                    result.reasoning = cachedResponse.reasoning + 
+                        '\n\n[Note: The LLM identified code ' + cachedResponse.suggestedNaicsCode + 
+                        ' with HIGH confidence. This code exists in other emissions factor sets but not in the selected factor set (which contains NAICS codes). ' +
+                        'This suggests the LLM may have identified an EEIO (Economic Input-Output) code rather than a NAICS code. ' +
+                        'Please review the spending categories and select an appropriate NAICS code from the selected factor set.]';
+                } else {
+                    // Fallback to original message
+                    result.errorMessage = 'Cached response contains code ' + cachedResponse.suggestedNaicsCode + 
+                        ', which appears to be an EEIO (Economic Input-Output) code rather than a NAICS code. ' +
+                        'This code is not available in the selected emissions factor set, which uses NAICS codes.';
+                    result.reasoning = cachedResponse.reasoning + 
+                        '\n\n[Note: The LLM identified an EEIO code (' + cachedResponse.suggestedNaicsCode + 
+                        ') instead of a NAICS code. Please review the spending categories and select an appropriate NAICS code from the factor set.]';
+                }
+            } else {
+                // Valid NAICS code format but not in factor set
+                result.errorMessage = 'No matching emissions factor found for cached NAICS code: ' + cachedResponse.suggestedNaicsCode;
+                result.reasoning = cachedResponse.reasoning;
+            }
             return result;
         }
         

@@ -279,16 +279,65 @@ public class USEEIOMatchingService {
             
             if (matchingFactors.isEmpty()) {
                 System.debug('No matching emissions factor found for item ' + item.Id + 
-                            ' with NAICS code: ' + llmResponse.suggestedNaicsCode);
-                // LLM suggested a valid NAICS code, but it doesn't exist in this factor set
-                // Still save the reasoning, but mark as NO_MATCH with a helpful error message
-                result.errorMessage = 'LLM suggested NAICS code ' + llmResponse.suggestedNaicsCode + 
-                    ', but this code is not available in the selected emissions factor set. ' +
-                    'The LLM reasoning is preserved for reference.';
+                            ' with code: ' + llmResponse.suggestedNaicsCode);
+                
+                // Enhanced EEIO detection: check sector range AND existence in other factor sets
+                Boolean isEeioCode = isLikelyEeioCode(
+                    llmResponse.suggestedNaicsCode, 
+                    llmResponse.confidence, 
+                    pcmtEmssnFctrSetId  // The linked factor set (contains NAICS codes)
+                );
+                
+                if (isEeioCode) {
+                    // Determine the specific reason for EEIO detection
+                    String sectorStr = llmResponse.suggestedNaicsCode.substring(0, 2);
+                    Integer sector = Integer.valueOf(sectorStr);
+                    Boolean isOutsideRange = sector < 11 || sector > 92;
+                    Boolean existsInOtherFactorSet = codeExistsInOtherFactorSet(
+                        llmResponse.suggestedNaicsCode, 
+                        pcmtEmssnFctrSetId
+                    );
+                    
+                    if (isOutsideRange) {
+                        // Original case: sector outside NAICS range
+                        result.errorMessage = 'LLM suggested code ' + llmResponse.suggestedNaicsCode + 
+                            ', which appears to be an EEIO (Economic Input-Output) code rather than a NAICS code. ' +
+                            'This code is not available in the selected emissions factor set, which uses NAICS codes. ' +
+                            'The LLM reasoning is preserved for reference.';
+                        result.reasoning = llmResponse.reasoning + 
+                            '\n\n[Note: The LLM identified an EEIO code (' + llmResponse.suggestedNaicsCode + 
+                            ') instead of a NAICS code. Please review the spending categories and select an appropriate NAICS code from the factor set.]';
+                    } else if (existsInOtherFactorSet && llmResponse.confidence == 'HIGH') {
+                        // New case: code exists in other factor sets but not in linked NAICS factor set
+                        result.errorMessage = 'LLM suggested code ' + llmResponse.suggestedNaicsCode + 
+                            ', which appears to be an EEIO (Economic Input-Output) code rather than a NAICS code. ' +
+                            'While this code follows NAICS format, it exists in other emissions factor sets in the system but not in the selected factor set (which contains NAICS codes). ' +
+                            'The LLM was highly confident in this match, suggesting it may have identified an EEIO code. ' +
+                            'Please review the spending categories and select an appropriate NAICS code from the selected factor set.';
+                        result.reasoning = llmResponse.reasoning + 
+                            '\n\n[Note: The LLM identified code ' + llmResponse.suggestedNaicsCode + 
+                            ' with HIGH confidence. This code exists in other emissions factor sets but not in the selected factor set (which contains NAICS codes). ' +
+                            'This suggests the LLM may have identified an EEIO (Economic Input-Output) code rather than a NAICS code. ' +
+                            'Please review the spending categories and select an appropriate NAICS code from the selected factor set.]';
+                    } else {
+                        // Fallback to original message
+                        result.errorMessage = 'LLM suggested code ' + llmResponse.suggestedNaicsCode + 
+                            ', which appears to be an EEIO (Economic Input-Output) code rather than a NAICS code. ' +
+                            'This code is not available in the selected emissions factor set, which uses NAICS codes.';
+                        result.reasoning = llmResponse.reasoning + 
+                            '\n\n[Note: The LLM identified an EEIO code (' + llmResponse.suggestedNaicsCode + 
+                            ') instead of a NAICS code. Please review the spending categories and select an appropriate NAICS code from the factor set.]';
+                    }
+                } else {
+                    // Valid NAICS code format but not in factor set (existing logic)
+                    result.errorMessage = 'LLM suggested NAICS code ' + llmResponse.suggestedNaicsCode + 
+                        ', but this code is not available in the selected emissions factor set. ' +
+                        'The LLM reasoning is preserved for reference.';
+                    result.reasoning = llmResponse.reasoning;
+                }
+                
                 result.status = 'NO_MATCH';
-                result.reasoning = llmResponse.reasoning;
-                // Set a low confidence score based on LLM confidence (even though we can't match it)
-                // This helps users understand the LLM was confident, but the code isn't available
+                // Set confidence score based on LLM confidence
                 if (llmResponse.confidence == 'HIGH') {
                     result.confidenceScore = 0.3; // LLM was confident, but code not available
                 } else if (llmResponse.confidence == 'MEDIUM') {
@@ -449,6 +498,75 @@ public class USEEIOMatchingService {
         ];
         
         return factors;
+    }
+    
+    /**
+     * @description Check if a NAICS code exists in factor sets OTHER than the specified one
+     * @description Used to detect if a code exists in EEIO factor sets but not in the NAICS factor set
+     * @param naicsCode 6-digit code to check
+     * @param excludeFactorSetId Factor set ID to exclude from search (the NAICS factor set)
+     * @return True if code exists in any other factor set, false otherwise
+     */
+    public static Boolean codeExistsInOtherFactorSet(String naicsCode, Id excludeFactorSetId) {
+        if (String.isBlank(naicsCode) || !LLMService.validateNaicsCode(naicsCode) || excludeFactorSetId == null) {
+            return false;
+        }
+        
+        // Query other factor sets (excluding the linked one) to see if this code exists
+        List<PcmtEmssnFctrSetItem> existingFactors = [
+            SELECT Id
+            FROM PcmtEmssnFctrSetItem
+            WHERE EconomicSectorCode = :naicsCode
+            AND PcmtEmssnFctrSetId != :excludeFactorSetId
+            LIMIT 1
+        ];
+        
+        return !existingFactors.isEmpty();
+    }
+    
+    /**
+     * @description Check if a code is likely an EEIO code rather than a NAICS code
+     * @description NAICS codes have sector ranges 11-92 (first 2 digits)
+     * @description EEIO codes are 6-digit numeric but may fall outside NAICS sector ranges
+     * @param code 6-digit numeric code
+     * @return True if code appears to be EEIO (outside NAICS sector ranges)
+     */
+    public static Boolean isLikelyEeioCode(String code) {
+        return isLikelyEeioCode(code, null, null);
+    }
+    
+    /**
+     * @description Check if a code is likely an EEIO code rather than a NAICS code
+     * @description Enhanced version that checks sector range and existence in other factor sets
+     * @param code 6-digit numeric code
+     * @param llmConfidence LLM confidence level (HIGH, MEDIUM, LOW) - optional
+     * @param linkedFactorSetId The factor set ID linked to Procurement Summary (contains NAICS codes)
+     * @return True if code appears to be EEIO
+     */
+    public static Boolean isLikelyEeioCode(String code, String llmConfidence, Id linkedFactorSetId) {
+        // First check: sector range (existing logic)
+        if (String.isBlank(code) || code.length() != 6 || !code.isNumeric()) {
+            return false;
+        }
+        
+        String sectorStr = code.substring(0, 2);
+        Integer sector = Integer.valueOf(sectorStr);
+        
+        // Codes outside NAICS sector range (11-92) are likely EEIO
+        if (sector < 11 || sector > 92) {
+            return true;
+        }
+        
+        // Second check: if code is in valid NAICS range but exists in OTHER factor sets
+        // (not the linked one) AND LLM confidence is HIGH, it's likely an EEIO code
+        if (linkedFactorSetId != null && llmConfidence == 'HIGH') {
+            Boolean existsInOtherFactorSet = codeExistsInOtherFactorSet(code, linkedFactorSetId);
+            if (existsInOtherFactorSet) {
+                return true; // Code exists in other factor sets but not linked one - likely EEIO
+            }
+        }
+        
+        return false;
     }
     
     /**
