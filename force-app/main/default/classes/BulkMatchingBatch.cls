@@ -73,12 +73,22 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
      * @param items List of Scope3PcmtItem records to process
      */
     public void execute(Database.BatchableContext bc, List<Scope3PcmtItem> items) {
+        // #region agent log
+        System.debug('[DEBUG] BulkMatchingBatch.execute - ENTRY: items.size=' + (items != null ? items.size() : 0) + ', totalProcessed=' + totalProcessed + ', batchJobId=' + bc.getJobId());
+        // #endregion
+        
         if (items == null || items.isEmpty()) {
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingBatch.execute - EXIT: No items to process');
+            // #endregion
             return;
         }
         
         if (pcmtEmssnFctrSetId == null) {
             System.debug('ERROR: PcmtEmssnFctrSetId is null. Cannot process items.');
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingBatch.execute - ERROR: pcmtEmssnFctrSetId is null');
+            // #endregion
             return;
         }
         
@@ -90,6 +100,10 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
         Integer itemsProcessedInBatch = 0;
         
         System.debug('Starting batch execution with ' + items.size() + ' items. Current callouts: ' + Limits.getCallouts() + ', CPU time: ' + Limits.getCpuTime());
+        
+        // #region agent log
+        System.debug('[DEBUG] BulkMatchingBatch.execute - BEFORE PROCESSING: totalProcessed=' + totalProcessed + ', itemsInThisBatch=' + items.size() + ', summaryId=' + scope3PcmtSummaryId);
+        // #endregion
         
         // PHASE 1: Make all LLM calls first (no DML operations)
         for (Scope3PcmtItem item : items) {
@@ -248,6 +262,10 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                 itemsProcessedInBatch++;
                 System.debug('Successfully processed item ' + item.Id + '. Total processed in batch: ' + itemsProcessedInBatch);
                 
+                // #region agent log
+                System.debug('[DEBUG] BulkMatchingBatch.execute - ITEM PROCESSED: itemId=' + item.Id + ', itemsProcessedInBatch=' + itemsProcessedInBatch + ', totalProcessed=' + totalProcessed);
+                // #endregion
+                
             } catch (Exception e) {
                 // Log error but continue processing other items
                 System.debug('Error processing item ' + item.Id + ': ' + e.getMessage());
@@ -332,6 +350,45 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                 System.debug('Error updating items: ' + updateEx.getMessage());
             }
         }
+        
+        // #region agent log
+        System.debug('[DEBUG] BulkMatchingBatch.execute - AFTER PROCESSING: itemsProcessedInBatch=' + itemsProcessedInBatch + ', totalProcessed=' + totalProcessed + ', totalMatched=' + totalMatched + ', totalNeedsReview=' + totalNeedsReview);
+        // #endregion
+        
+        // Update summary record incrementally during execution (not just at finish)
+        // This allows the UI to see progress in real-time
+        try {
+            Scope3PcmtSummary summaryToUpdate = [
+                SELECT Id, Bulk_Matching_Items_Processed__c, Bulk_Matching_Items_Matched__c,
+                       Bulk_Matching_Items_Needing_Review__c, Bulk_Matching_Cache_Hits__c,
+                       Bulk_Matching_Deduplicated__c, Bulk_Matching_LLM_Calls__c
+                FROM Scope3PcmtSummary
+                WHERE Id = :scope3PcmtSummaryId
+                LIMIT 1
+            ];
+            
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingBatch.execute - BEFORE UPDATE: currentProcessed=' + summaryToUpdate.Bulk_Matching_Items_Processed__c + ', newTotalProcessed=' + totalProcessed);
+            // #endregion
+            
+            summaryToUpdate.Bulk_Matching_Items_Processed__c = totalProcessed;
+            summaryToUpdate.Bulk_Matching_Items_Matched__c = totalMatched;
+            summaryToUpdate.Bulk_Matching_Items_Needing_Review__c = totalNeedsReview;
+            summaryToUpdate.Bulk_Matching_Cache_Hits__c = totalCached;
+            summaryToUpdate.Bulk_Matching_Deduplicated__c = totalDeduplicated;
+            summaryToUpdate.Bulk_Matching_LLM_Calls__c = totalLLMCalls;
+            
+            update summaryToUpdate;
+            
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingBatch.execute - AFTER UPDATE: updatedProcessed=' + summaryToUpdate.Bulk_Matching_Items_Processed__c + ', updatedMatched=' + summaryToUpdate.Bulk_Matching_Items_Matched__c);
+            // #endregion
+        } catch (Exception updateEx) {
+            System.debug('Error updating summary during execution: ' + updateEx.getMessage());
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingBatch.execute - UPDATE ERROR: ' + updateEx.getMessage());
+            // #endregion
+        }
     }
     
     /**
@@ -339,6 +396,10 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
      * @param bc Batch context
      */
     public void finish(Database.BatchableContext bc) {
+        // #region agent log
+        System.debug('[DEBUG] BulkMatchingBatch.finish - ENTRY: totalProcessed=' + totalProcessed + ', totalMatched=' + totalMatched + ', totalNeedsReview=' + totalNeedsReview + ', batchJobId=' + bc.getJobId());
+        // #endregion
+        
         try {
             // Query summary to update
             Scope3PcmtSummary summaryToUpdate = [
@@ -351,6 +412,10 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                 WHERE Id = :scope3PcmtSummaryId
                 LIMIT 1
             ];
+            
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingBatch.finish - BEFORE UPDATE: currentProcessed=' + summaryToUpdate.Bulk_Matching_Items_Processed__c + ', currentMatched=' + summaryToUpdate.Bulk_Matching_Items_Matched__c);
+            // #endregion
             
             // Update statistics
             summaryToUpdate.Bulk_Matching_Status__c = 'Complete';
@@ -368,6 +433,10 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
             summaryToUpdate.Bulk_Matching_Cost_Saved__c = costSaved;
             
             update summaryToUpdate;
+            
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingBatch.finish - AFTER UPDATE: updatedProcessed=' + summaryToUpdate.Bulk_Matching_Items_Processed__c + ', updatedMatched=' + summaryToUpdate.Bulk_Matching_Items_Matched__c + ', updatedNeedsReview=' + summaryToUpdate.Bulk_Matching_Items_Needing_Review__c);
+            // #endregion
             
             System.debug('Bulk matching completed. Processed: ' + totalProcessed + 
                         ', Matched: ' + totalMatched + 

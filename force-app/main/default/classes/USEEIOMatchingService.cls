@@ -760,6 +760,10 @@ public class USEEIOMatchingService {
      */
     @AuraEnabled(cacheable=true)
     public static BulkMatchingStatus getMatchingStatus(Id scope3PcmtSummaryId) {
+        // #region agent log
+        System.debug('[DEBUG] getMatchingStatus - ENTRY: scope3PcmtSummaryId=' + scope3PcmtSummaryId);
+        // #endregion
+        
         BulkMatchingStatus status = new BulkMatchingStatus();
         
         try {
@@ -773,6 +777,10 @@ public class USEEIOMatchingService {
                 WHERE Id = :scope3PcmtSummaryId
                 LIMIT 1
             ];
+            
+            // #region agent log
+            System.debug('[DEBUG] getMatchingStatus - QUERIED SUMMARY: processed=' + summary.Bulk_Matching_Items_Processed__c + ', matched=' + summary.Bulk_Matching_Items_Matched__c + ', needsReview=' + summary.Bulk_Matching_Items_Needing_Review__c + ', status=' + summary.Bulk_Matching_Status__c);
+            // #endregion
             
             // Map status from picklist to enum
             if (summary.Bulk_Matching_Status__c == 'Not Started') {
@@ -797,16 +805,33 @@ public class USEEIOMatchingService {
             status.llmCalls = summary.Bulk_Matching_LLM_Calls__c != null ? summary.Bulk_Matching_LLM_Calls__c.intValue() : 0;
             status.costSaved = summary.Bulk_Matching_Cost_Saved__c != null ? summary.Bulk_Matching_Cost_Saved__c : 0.0;
             
-            // Get total items count
+            // Get total items count - count ALL items for this summary
             Integer totalItems = [
                 SELECT COUNT()
                 FROM Scope3PcmtItem
                 WHERE ProcurementSummaryId = :scope3PcmtSummaryId
             ];
+            
+            // Also count unmatched items to see the difference
+            Integer unmatchedItems = [
+                SELECT COUNT()
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :scope3PcmtSummaryId
+                AND PcmtEmssnFctrSetItemId = null
+            ];
+            
             status.totalItems = totalItems;
+            
+            // #region agent log
+            System.debug('[DEBUG] getMatchingStatus - CALCULATED: totalItems=' + totalItems + ', unmatchedItems=' + unmatchedItems + ', processedItems=' + status.processedItems + ', matchedItems=' + status.matchedItems + ', needsReviewItems=' + status.needsReviewItems);
+            // #endregion
             
             // Calculate progress
             status.calculateProgress();
+            
+            // #region agent log
+            System.debug('[DEBUG] getMatchingStatus - PROGRESS: progressPercentage=' + status.progressPercentage + ', status=' + status.status);
+            // #endregion
             
         } catch (Exception e) {
             status.status = 'ERROR';
@@ -918,10 +943,23 @@ public class USEEIOMatchingService {
                 return response;
             }
             
+            // Query item to get summary ID before updating
+            Scope3PcmtItem itemToQuery = [
+                SELECT Id, ProcurementSummaryId
+                FROM Scope3PcmtItem
+                WHERE Id = :itemId
+                LIMIT 1
+            ];
+            
             Scope3PcmtItem item = new Scope3PcmtItem(Id = itemId);
             item.PcmtEmssnFctrSetItemId = factorSetItemId;
             
             update item;
+            
+            // Recalculate Bulk_Matching_Items_Needing_Review__c if summary exists
+            if (itemToQuery.ProcurementSummaryId != null) {
+                recalculateItemsNeedingReview(itemToQuery.ProcurementSummaryId);
+            }
             
             response.put('success', true);
             
@@ -1110,5 +1148,34 @@ public class USEEIOMatchingService {
         }
         
         return stats;
+    }
+    
+    /**
+     * @description Recalculate and update Bulk_Matching_Items_Needing_Review__c for a Scope3PcmtSummary
+     * @param summaryId Scope3PcmtSummary record ID
+     */
+    private static void recalculateItemsNeedingReview(Id summaryId) {
+        try {
+            // Count items matching the same criteria as getItemsNeedingReview
+            Integer itemsNeedingReview = [
+                SELECT COUNT()
+                FROM Scope3PcmtItem
+                WHERE ProcurementSummaryId = :summaryId
+                AND (
+                    PcmtEmssnFctrSetItemId = null
+                    OR Match_Confidence_Score__c < 0.7
+                )
+                AND (Review_Status__c = 'Pending Review' OR Review_Status__c = null)
+            ];
+            
+            // Update the summary record
+            Scope3PcmtSummary summary = new Scope3PcmtSummary(Id = summaryId);
+            summary.Bulk_Matching_Items_Needing_Review__c = itemsNeedingReview;
+            update summary;
+            
+        } catch (Exception e) {
+            System.debug('Error recalculating items needing review: ' + e.getMessage());
+            // Don't throw - this is a helper method that shouldn't break the main operation
+        }
     }
 }

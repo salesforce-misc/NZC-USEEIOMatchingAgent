@@ -55,6 +55,10 @@ export default class BulkMatchingSummary extends LightningElement {
     localStatus = null; // Optimistic status for immediate UI update
     previousStatus = null; // Track status changes for notifications
     
+    // Pagination state
+    currentPage = 1;
+    pageSize = 25;
+    
     // Wire result for refresh
     wiredStatusResult;
     wiredItemsResult;
@@ -128,10 +132,22 @@ export default class BulkMatchingSummary extends LightningElement {
     // Wire status
     @wire(getMatchingStatus, { scope3PcmtSummaryId: '$recordId' })
     wiredStatus(result) {
+        // #region agent log
+        console.log('[DEBUG] wiredStatus called - hasData:', !!result.data, 'hasError:', !!result.error, 'recordId:', this.recordId);
+        fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:wiredStatus',message:'Status wire called',data:{hasData:!!result.data,hasError:!!result.error,recordId:this.recordId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
         this.wiredStatusResult = result;
         if (result.data) {
             const newStatus = result.data.status;
             const oldStatus = this.previousStatus || (this.matchingStatus ? this.matchingStatus.status : null);
+            
+            // #region agent log
+            const statusData = {status:newStatus,processedItems:result.data.processedItems,totalItems:result.data.totalItems,matchedItems:result.data.matchedItems,needsReviewItems:result.data.needsReviewItems,progressPercentage:result.data.progressPercentage,oldStatus:oldStatus};
+            console.log('[DEBUG] Status data received:', JSON.stringify(statusData, null, 2));
+            console.log('[DEBUG] Display will show: Processing', result.data.processedItems, 'of', result.data.totalItems, 'items. Progress:', result.data.progressPercentage + '%');
+            fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:wiredStatus',message:'Status data received',data:statusData,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
             
             // Detect status transition for notifications
             if (oldStatus === 'IN_PROGRESS' && newStatus === 'COMPLETE') {
@@ -146,8 +162,19 @@ export default class BulkMatchingSummary extends LightningElement {
             // Update previous status before updating matchingStatus
             this.previousStatus = this.matchingStatus ? this.matchingStatus.status : null;
             
-            // Update status
-            this.matchingStatus = result.data;
+            // Update status - create a new object to avoid mutating the proxy
+            if (result.data) {
+                this.matchingStatus = {
+                    ...result.data,
+                    complete: (result.data.status === 'COMPLETE')
+                };
+            } else {
+                this.matchingStatus = null;
+            }
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:wiredStatus',message:'Status updated',data:{matchingStatus:{status:this.matchingStatus?.status,processedItems:this.matchingStatus?.processedItems,totalItems:this.matchingStatus?.totalItems,matchedItems:this.matchingStatus?.matchedItems,needsReviewItems:this.matchingStatus?.needsReviewItems,progressPercentage:this.matchingStatus?.progressPercentage,complete:this.matchingStatus?.complete},wiredSummaryResult:{hasData:!!this.wiredSummaryResult?.data,summaryItemsProcessed:this.summaryItemsProcessed,summaryItemsMatched:this.summaryItemsMatched},localStatus:this.localStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
             
             // Clear local status once we have real status (if it matches)
             if (this.localStatus && this.matchingStatus && this.localStatus === this.matchingStatus.status) {
@@ -157,6 +184,9 @@ export default class BulkMatchingSummary extends LightningElement {
             this.checkPolling();
         } else if (result.error) {
             console.error('Error loading status:', result.error);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:wiredStatus',message:'Status wire error',data:{error:result.error.toString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
             // Clear local status on error
             this.localStatus = null;
         }
@@ -189,9 +219,12 @@ export default class BulkMatchingSummary extends LightningElement {
                 }
                 return transformedItem;
             });
+            // Reset pagination when items change
+            this.resetPagination();
         } else if (result.error) {
             console.error('Error loading items:', result.error);
             this.itemsNeedingReview = [];
+            this.resetPagination();
         }
     }
     
@@ -346,7 +379,14 @@ export default class BulkMatchingSummary extends LightningElement {
     }
     
     get progressPercentage() {
-        return this.matchingStatus ? this.matchingStatus.progressPercentage : 0;
+        const percentage = this.matchingStatus ? this.matchingStatus.progressPercentage : 0;
+            // #region agent log
+            const progressData = {percentage:percentage,hasMatchingStatus:!!this.matchingStatus,processedItems:this.matchingStatus?.processedItems,totalItems:this.matchingStatus?.totalItems,calculated:this.matchingStatus && this.matchingStatus.totalItems > 0 ? (this.matchingStatus.processedItems / this.matchingStatus.totalItems * 100) : 0};
+            console.log('[DEBUG] Progress percentage getter:', JSON.stringify(progressData, null, 2));
+            console.log('[DEBUG] Progress calculation: processedItems=' + (this.matchingStatus?.processedItems || 0) + ', totalItems=' + (this.matchingStatus?.totalItems || 0) + ', percentage=' + percentage);
+            fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:progressPercentage',message:'Progress percentage getter',data:progressData,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+        return percentage;
     }
     
     get hasItemsNeedingReview() {
@@ -423,15 +463,105 @@ export default class BulkMatchingSummary extends LightningElement {
         return this.currentStatus === 'IN_PROGRESS';
     }
     
+    // Pagination getters
+    get totalPages() {
+        if (!this.itemsNeedingReview || this.itemsNeedingReview.length === 0) {
+            return 1;
+        }
+        return Math.ceil(this.itemsNeedingReview.length / this.pageSize);
+    }
+    
+    get paginatedItems() {
+        if (!this.itemsNeedingReview || this.itemsNeedingReview.length === 0) {
+            return [];
+        }
+        const start = (this.currentPage - 1) * this.pageSize;
+        const end = start + this.pageSize;
+        return this.itemsNeedingReview.slice(start, end);
+    }
+    
+    get hasPagination() {
+        return this.itemsNeedingReview && this.itemsNeedingReview.length > this.pageSize;
+    }
+    
+    get isFirstPage() {
+        return this.currentPage <= 1;
+    }
+    
+    get isLastPage() {
+        return this.currentPage >= this.totalPages;
+    }
+    
+    // Summary field getters (from wired summary result)
+    get summaryItemsProcessed() {
+        if (!this.wiredSummaryResult || !this.wiredSummaryResult.data) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:summaryItemsProcessed',message:'No wiredSummaryResult data',data:{hasWiredResult:!!this.wiredSummaryResult,hasData:!!this.wiredSummaryResult?.data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+            return 0;
+        }
+        const value = getFieldValue(this.wiredSummaryResult.data, BULK_MATCHING_ITEMS_PROCESSED_FIELD) || 0;
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:summaryItemsProcessed',message:'Summary field value',data:{value:value,fieldName:'Bulk_Matching_Items_Processed__c'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        return value;
+    }
+    
+    get summaryItemsMatched() {
+        if (!this.wiredSummaryResult || !this.wiredSummaryResult.data) {
+            return 0;
+        }
+        return getFieldValue(this.wiredSummaryResult.data, BULK_MATCHING_ITEMS_MATCHED_FIELD) || 0;
+    }
+    
+    get summaryItemsNeedingReview() {
+        if (!this.wiredSummaryResult || !this.wiredSummaryResult.data) {
+            return 0;
+        }
+        return getFieldValue(this.wiredSummaryResult.data, BULK_MATCHING_ITEMS_NEEDING_REVIEW_FIELD) || 0;
+    }
+    
+    get summaryItemsDeduplicated() {
+        if (!this.wiredSummaryResult || !this.wiredSummaryResult.data) {
+            return 0;
+        }
+        return getFieldValue(this.wiredSummaryResult.data, BULK_MATCHING_DEDUPLICATED_FIELD) || 0;
+    }
+    
+    get summaryCacheHits() {
+        if (!this.wiredSummaryResult || !this.wiredSummaryResult.data) {
+            return 0;
+        }
+        return getFieldValue(this.wiredSummaryResult.data, BULK_MATCHING_CACHE_HITS_FIELD) || 0;
+    }
+    
+    get summaryLLMCalls() {
+        if (!this.wiredSummaryResult || !this.wiredSummaryResult.data) {
+            return 0;
+        }
+        return getFieldValue(this.wiredSummaryResult.data, BULK_MATCHING_LLM_CALLS_FIELD) || 0;
+    }
+    
     // Methods
     async handleStartMatching() {
+        // #region agent log
+        console.log('[DEBUG] handleStartMatching - Starting bulk matching for recordId:', this.recordId);
+        fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:handleStartMatching',message:'Starting bulk matching',data:{recordId:this.recordId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+        
         this.isLoading = true;
         
         // Optimistic UI update - set status to IN_PROGRESS immediately
         this.localStatus = 'IN_PROGRESS';
+        console.log('[DEBUG] handleStartMatching - Set localStatus to IN_PROGRESS');
         
         try {
             const response = await startBulkMatching({ scope3PcmtSummaryId: this.recordId });
+            
+            // #region agent log
+            console.log('[DEBUG] handleStartMatching - Response received:', JSON.stringify(response, null, 2));
+            fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:handleStartMatching',message:'Bulk matching started response',data:{success:response.success,jobId:response.jobId,error:response.error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
             
             if (response.success) {
                 this.showToast('Success', 'Bulk matching started successfully', 'success');
@@ -506,8 +636,17 @@ export default class BulkMatchingSummary extends LightningElement {
     startPolling() {
         // Only poll if status is IN_PROGRESS
         if (this.currentStatus === 'IN_PROGRESS' && !this.isPolling) {
+            // #region agent log
+            console.log('[DEBUG] startPolling - Starting polling, currentStatus:', this.currentStatus, 'isPolling:', this.isPolling);
+            fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:startPolling',message:'Starting polling',data:{currentStatus:this.currentStatus,isPolling:this.isPolling},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
             this.isPolling = true;
             this.pollingInterval = setInterval(() => {
+                // #region agent log
+                const pollData = {currentStatus:this.currentStatus,currentProcessed:this.matchingStatus?.processedItems,currentTotal:this.matchingStatus?.totalItems};
+                console.log('[DEBUG] Polling interval triggered:', JSON.stringify(pollData, null, 2));
+                fetch('http://127.0.0.1:7242/ingest/a2470097-ad13-4b25-8dfa-da06220e9c80',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulkMatchingSummary.js:pollingInterval',message:'Polling interval triggered',data:pollData,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
                 this.loadStatus();
             }, 5000); // Poll every 5 seconds
         }
@@ -660,8 +799,11 @@ export default class BulkMatchingSummary extends LightningElement {
                 this.showToast('Success', 'Emissions factor updated successfully', 'success');
                 // Close the modal
                 this.closeLookupModal();
-                // Refresh the data
+                // Refresh the data including summary to get updated Items Needing Review count
                 await refreshApex(this.wiredItemsResult);
+                await refreshApex(this.wiredSummaryResult);
+                // Reset pagination since items list may have changed
+                this.resetPagination();
             } else {
                 throw new Error(response.error || 'Failed to update item');
             }
@@ -671,6 +813,29 @@ export default class BulkMatchingSummary extends LightningElement {
         } finally {
             this.isLoading = false;
         }
+    }
+    
+    // Pagination handlers
+    handlePreviousPage() {
+        if (this.currentPage > 1) {
+            this.currentPage--;
+            // Clear selection when changing pages
+            this.selectedRows = [];
+        }
+    }
+    
+    handleNextPage() {
+        if (this.currentPage < this.totalPages) {
+            this.currentPage++;
+            // Clear selection when changing pages
+            this.selectedRows = [];
+        }
+    }
+    
+    // Reset pagination when items change
+    resetPagination() {
+        this.currentPage = 1;
+        this.selectedRows = [];
     }
     
     // Cleanup on component destroy

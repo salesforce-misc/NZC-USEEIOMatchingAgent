@@ -44,6 +44,10 @@ public class BulkMatchingQueueable implements Queueable {
                 AND PcmtEmssnFctrSetItemId = null
             ];
             
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingQueueable.execute - UNMATCHED ITEMS COUNT: itemCount=' + itemCount + ', summaryId=' + scope3PcmtSummaryId);
+            // #endregion
+            
             if (itemCount == 0) {
                 // No items to process
                 summary.Bulk_Matching_Status__c = 'Complete';
@@ -63,6 +67,11 @@ public class BulkMatchingQueueable implements Queueable {
             summary.Bulk_Matching_Deduplicated__c = 0;
             summary.Bulk_Matching_LLM_Calls__c = 0;
             summary.Bulk_Matching_Cost_Saved__c = 0;
+            
+            // #region agent log
+            System.debug('[DEBUG] BulkMatchingQueueable.execute - BEFORE UPDATE: setting status=In Progress, processed=0, unmatchedItems=' + itemCount);
+            // #endregion
+            
             update summary;
             
             // Enqueue Batch Apex job
