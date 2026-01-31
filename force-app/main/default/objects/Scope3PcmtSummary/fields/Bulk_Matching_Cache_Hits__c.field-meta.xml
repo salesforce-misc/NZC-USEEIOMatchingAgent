@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Bulk_Matching_Cache_Hits__c</fullName>
+    <defaultValue>0</defaultValue>
     <description>Number of items that used cached LLM responses (avoided LLM API calls).</description>
     <externalId>false</externalId>
     <label>Bulk Matching Cache Hits</label>
@@ -8,8 +9,6 @@
     <required>false</required>
     <scale>0</scale>
     <trackHistory>false</trackHistory>
-    <trackTrending>false</trackTrending>
     <type>Number</type>
     <unique>false</unique>
-    <defaultValue>0</defaultValue>
 </CustomField>
