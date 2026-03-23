@@ -24,7 +24,7 @@ Based on Salesforce development best practices for building intelligent, agentic
 - **Bulkification**: All code must handle 200+ records
 - **Governor Limits**: Be mindful of SOQL queries, DML operations, CPU time
 - **Test Coverage**: Minimum 75% coverage, aim for 90%+
-- **Async Processing**: Use `@future`, Queueable, or Batchable for long-running operations
+- **Async Processing**: Prefer **Queueable** (and **Batchable** for large volumes). **Do not use `@future`** for new async work; Queueable composes better with chaining, testing, and (where needed) **`System.Finalizer`** for centralized success/failure handling. This project uses **Queueable** (`BulkMatchingQueueable`) and **Batchable** (`BulkMatchingBatch`) for bulk matching.
 
 ### 4. Lightning Web Component Best Practices
 - **Wire Services**: Use `@wire` for reactive data fetching
@@ -209,6 +209,40 @@ private class USEEIOMatchingServiceTest {
     }
 }
 ```
+
+---
+
+---
+
+## Alignment with Salesforce EMU DX template
+
+This project adopts conventions from the Salesforce EMU **Salesforce DX + AI development template**: [LLM-Based-SalesforceProject](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject). That repository is a starting point for Cursor-friendly Salesforce projects; the practices below are distilled from its README and `.cursor/rules` (e.g. Apex and LWC guidance).
+
+### Repository and AI-assisted development
+
+- **`REPOSITORY_SUMMARY.md`** (this repo’s copy is at the project root) is the **first document** to read for architecture, components, and doc map. Keep it updated when you add major features or integrations.
+- Optional: add **`.cursor/rules`** modeled on the template (e.g. `apex-best-practices.mdc`, `lwc-best-practices.mdc`, `repo-shape.mdc`) so local AI assistants follow the same standards automatically.
+
+### Apex (from template-aligned rules)
+
+- **Queueable over `@future`**: Use Queueable for asynchronous work; consider implementing **`System.Finalizer`** on the Queueable class to branch on `UNHANDLED_EXCEPTION` vs success for observability and recovery (template pattern). *Enhancement opportunity:* add a Finalizer to `BulkMatchingQueueable` if product owners want explicit failure notification or summary rollback semantics beyond today’s try/catch.
+- **Design**: Prefer **clear naming** (`idToAccount`-style maps), **enums** over magic strings where Apex allows, and **repository-style** data access if the codebase grows beyond a few service classes (centralize SOQL/DML for test doubles).
+- **Maintainability**: Avoid drive-by refactors; keep changes scoped to the task. Prefer small, testable methods over deeply nested conditionals (null-object / early-return patterns where appropriate).
+- **Comments**: Prefer self-explanatory names; comment **why**, not what, except for platform quirks.
+
+### LWC (from template-aligned rules)
+
+- **Structure**: One folder per component (`componentName.js`, `.html`, `.css`, `.js-meta.xml`); colocate **`__tests__`** with Jest tests when adding or extending components.
+- **Implementation**: Favor **Lightning base components**; use **`@wire`** with error handling for reactive reads; **`async`/`await`** for imperative Apex; validate null/undefined before use.
+- **Naming**: PascalCase bundle folder; camelCase members; event names that describe actions (e.g. `recordSaved`).
+
+### Prompts and enterprise LLM
+
+- **Prompt text** should live in **Prompt Builder** (metadata in org / `GenAiPromptTemplate` in source) for maintainability and Trust Layer resolution—not only in Apex string builders. See [PROMPT_BUILDER_SETUP.md](./PROMPT_BUILDER_SETUP.md) and the migration plan toward **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`**.
+
+### Version control and delivery
+
+- Feature branches, PR review, and CI that runs **Prettier**, **ESLint**, **LWC Jest**, and **Apex tests** match both template guidance and enterprise Salesforce delivery.
 
 ---
 

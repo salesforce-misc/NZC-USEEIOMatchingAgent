@@ -1,0 +1,80 @@
+# USEEIO Matching Agent — Repository Summary
+
+**USEEIO Matching Agent** is a Salesforce DX project for **Net Zero Cloud** that matches procurement line items (`Scope3PcmtItem`) to **USEEIO-style** emissions factor rows (`PcmtEmssnFctrSetItem`) using **NAICS 2017**-oriented logic, keyword pre-filtering, an **LLM** (Models API today; migration to **Prompt Builder** planned), and **response caching** on `LLM_Response_Cache__c`.
+
+This file is the **primary orientation document** for humans and AI assistants working in this repo (pattern recommended by the [Salesforce EMU DX template](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject)). Expand it as the solution grows.
+
+## Overview
+
+- Single-item and **bulk** matching from a **Procurement Summary** (`Scope3PcmtSummary`), with batch/queueable processing and progress fields on the summary.
+- **KeywordMatchingService** narrows candidate NAICS codes; **LLMService** suggests a code; **USEEIOMatchingService** resolves factors, confidence, EEIO-vs-NAICS handling, and applies matches.
+- **LLMResponseCache** persists LLM outputs keyed by category hash and factor set to reduce callouts and cost.
+- LWCs support interactive matching, bulk run UI, factor lookup, and custom datatable patterns.
+
+## Technology stack
+
+- **Salesforce DX** (`sfdx-project.json`), Apex, LWC, Jest (`sfdx-lwc-jest`), ESLint, Prettier, Husky.
+- **Net Zero Cloud** standard objects: `Scope3PcmtItem`, `Scope3PcmtSummary`, `PcmtEmssnFctrSet`, `PcmtEmssnFctrSetItem`.
+- **Einstein / Agentforce**: `aiplatform.ModelsAPI` for generations (see `LLMService`); Prompt Builder integration documented in `PROMPT_BUILDER_SETUP.md` and `CALL_PROMPT_TEMPLATE.md`.
+
+## Architecture (high level)
+
+| Layer | Responsibility |
+| ----- | ---------------- |
+| LWC | UI only: call `@AuraEnabled` services, show status, review queues, lookups. |
+| `USEEIOMatchingService` | Orchestration: queries, bulk entry points, match application, review helpers. |
+| `KeywordMatchingService` | Deterministic candidate NAICS from spending categories. |
+| `LLMService` | LLM call + JSON parse + NAICS validation. |
+| `LLMResponseCache` | Cache CRUD for `LLM_Response_Cache__c`. |
+| `BulkMatchingQueueable` | Validates summary, sets status, starts batch job. |
+| `BulkMatchingBatch` | Stateful batch: dedupe, cache read, callouts, deferred cache write, DML updates. |
+
+## Key paths (`force-app/main/default`)
+
+```
+classes/
+  USEEIOMatchingService.cls    — Main matching API (single, bulk start, status, review)
+  LLMService.cls               — LLM invocation and response parsing
+  LLMResponseCache.cls         — Cache get/save
+  KeywordMatchingService.cls   — Candidate NAICS
+  BulkMatchingBatch.cls        — Batch execution (caching, dedupe, updates)
+  BulkMatchingQueueable.cls    — Async kickoff
+  MatchingResult.cls, AlternativeMatch.cls, BulkMatchingResult.cls, BulkMatchingStatus.cls
+  *Test.cls                    — Apex tests
+
+lwc/
+  useeioMatcher/               — Single-item matching UX
+  bulkMatchingSummary/         — Bulk run + polling
+  bulkMatchingSummaryModal/    — Summary modal
+  factorSetItemLookup/         — Factor lookup
+  customDatatable/             — Datatable + lookup cell template
+
+objects/
+  LLM_Response_Cache__c/       — Cache object + fields
+  Scope3PcmtSummary/fields/    — Bulk matching custom fields (e.g. status, counts)
+  Scope3PcmtItem/fields/     — Match metadata, review status
+```
+
+## Documentation map
+
+| Topic | Document |
+| ----- | -------- |
+| Salesforce + EMU-aligned standards | [SALESFORCE_BEST_PRACTICES.md](./SALESFORCE_BEST_PRACTICES.md) |
+| Bulk design | [BULK_MATCHING_DESIGN.md](./BULK_MATCHING_DESIGN.md), [BULK_PROCESSING_FLOW_WITH_CACHING.md](./BULK_PROCESSING_FLOW_WITH_CACHING.md) |
+| Prompt Builder / Connect API | [PROMPT_BUILDER_SETUP.md](./PROMPT_BUILDER_SETUP.md), [CALL_PROMPT_TEMPLATE.md](./CALL_PROMPT_TEMPLATE.md) |
+| LLM setup | [LLM_INTEGRATION_SETUP.md](./LLM_INTEGRATION_SETUP.md), [QUICK_START_LLM.md](./QUICK_START_LLM.md) |
+| Domain | [NAICS_KNOWLEDGE_BASE.md](./NAICS_KNOWLEDGE_BASE.md), [USEEIO_KNOWLEDGE_BASE.md](./USEEIO_KNOWLEDGE_BASE.md) |
+| Testing | [TESTING_STRATEGY.md](./TESTING_STRATEGY.md), [SANDBOX_TESTING_PLAN.md](./SANDBOX_TESTING_PLAN.md) |
+| Known issues | [ISSUE_DESCRIPTION_FOR_EXPERTS.md](./ISSUE_DESCRIPTION_FOR_EXPERTS.md) |
+
+## Development workflow
+
+1. Change metadata under `force-app/main/default/`.
+2. Deploy: `sf project deploy start` (or VS Code/Cursor Salesforce extensions).
+3. Run Apex tests: `sf apex run test --test-level RunLocalTests` (or scoped).
+4. LWC unit tests: `npm run test:unit`.
+
+## External references
+
+- [Salesforce EMU LLM-Based-SalesforceProject (template)](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject) — DX layout, `REPOSITORY_SUMMARY.md` convention, Cursor rules for Apex/LWC.
+- [Invoke prompt templates from Apex](https://developer.salesforce.com/blogs/2024/04/invoke-prompt-templates-from-flow-apex-or-the-rest-api) — `ConnectApi.EinsteinLLM` pattern.
