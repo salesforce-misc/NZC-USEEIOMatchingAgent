@@ -15,7 +15,7 @@ This file is the **primary orientation document** for humans and AI assistants w
 
 - **Salesforce DX** (`sfdx-project.json`), Apex, LWC, Jest (`sfdx-lwc-jest`), ESLint, Prettier, Husky.
 - **Net Zero Cloud** standard objects: `Scope3PcmtItem`, `Scope3PcmtSummary`, `PcmtEmssnFctrSet`, `PcmtEmssnFctrSetItem`.
-- **Einstein / Agentforce**: `aiplatform.ModelsAPI` for generations (see `LLMService`); Prompt Builder integration documented in `PROMPT_BUILDER_SETUP.md` and `CALL_PROMPT_TEMPLATE.md`.
+- **Einstein / Agentforce**: `LLMService` invokes a **Prompt Builder** Flex template via **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`** (template name from `LLM_Config__mdt`). Default design uses **no Data Library grounding**—candidates + descriptions from Apex and model NAICS knowledge; cache in `LLM_Response_Cache__c` is checked in Apex before LLM calls. See `PROMPT_BUILDER_SETUP.md` and `CALL_PROMPT_TEMPLATE.md`.
 
 ## Architecture (high level)
 
@@ -51,6 +51,7 @@ lwc/
 
 objects/
   LLM_Response_Cache__c/       — Cache object + fields
+  LLM_Config__mdt/             — Prompt template API name + Connect invocation app name
   Scope3PcmtSummary/fields/    — Bulk matching custom fields (e.g. status, counts)
   Scope3PcmtItem/fields/     — Match metadata, review status
 ```

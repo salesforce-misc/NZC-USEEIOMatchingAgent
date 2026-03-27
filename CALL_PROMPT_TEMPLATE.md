@@ -1,55 +1,41 @@
-# How to Call Prompt Builder Template from Apex
-## Finding the Correct API Method
+# Calling the NAICS Prompt Template from Apex
 
-## The Challenge
+`LLMService.suggestNaicsCode` invokes the Flex template configured in **Custom Metadata** (`LLM_Config__mdt` record **Default**) using **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`**.
 
-The `createGenerations` API doesn't directly support calling Prompt Builder templates. We need to find the correct Connect API method.
+**Design:** No Data Library grounding—the template uses **candidate codes + descriptions from Apex** and the model’s **NAICS 2017 knowledge**, matching the old Models API approach. **Cache hits** (`LLM_Response_Cache__c` / batch dedupe) are still handled in Apex **before** this call.
 
-## Option 1: Use ConnectApi.EinsteinLLM (Recommended)
+## Configuration
 
-Based on Salesforce documentation, use the Connect API:
+| Setting | Source | Purpose |
+| -------- | ------ | -------- |
+| Template API name | `LLM_Config__mdt.Prompt_Template_API_Name__c` | Developer name of the Prompt Builder template (default `NAICS_Matching_Prompt`) |
+| Application name | `LLM_Config__mdt.Prompt_Invocation_Application_Name__c` | `EinsteinLlmAdditionalConfigInput.applicationName` (default `PromptBuilderPreview`). If invocation fails, try `PromptTemplateGenerationsInvocable` per your org. |
+
+## Apex pattern (same as `LLMService`)
 
 ```apex
-// Query the template first
-List<Prompt> prompts = [SELECT Id, DeveloperName FROM Prompt WHERE DeveloperName = 'NAICS_Matching_Prompt' LIMIT 1];
+ConnectApi.EinsteinPromptTemplateGenerationsInput promptInput = new ConnectApi.EinsteinPromptTemplateGenerationsInput();
+promptInput.isPreview = false;
+promptInput.additionalConfig = new ConnectApi.EinsteinLlmAdditionalConfigInput();
+promptInput.additionalConfig.applicationName = 'PromptBuilderPreview';
+promptInput.additionalConfig.numGenerations = 1;
+promptInput.inputParams = new Map<String, ConnectApi.WrappedValue>{
+    'Input:category1' => wrap('...'),
+    'Input:category2' => wrap('...'),
+    'Input:category3' => wrap('...'),
+    'Input:candidateCodes' => wrap('541211, 541219'),
+    'Input:candidateDescriptions' => wrap('- 541211: ...')
+};
 
-// Use Connect API
-ConnectApi.EinsteinPromptTemplateGenerationsInput input = new ConnectApi.EinsteinPromptTemplateGenerationsInput();
-// Set template reference (exact property name may vary)
-input.promptTemplateApiName = 'NAICS_Matching_Prompt'; // or input.promptTemplate
+ConnectApi.EinsteinPromptTemplateGenerationsRepresentation result =
+    ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate('NAICS_Matching_Prompt', promptInput);
 
-// Set variables
-Map<String, ConnectApi.WrappedValue> inputParams = new Map<String, ConnectApi.WrappedValue>();
-ConnectApi.WrappedValue val = new ConnectApi.WrappedValue();
-val.value = 'test'; // or val.stringValue
-inputParams.put('category1', val);
-input.inputParams = inputParams;
-
-// Call
-ConnectApi.EinsteinPromptTemplateGenerationsRepresentation response = 
-    ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate(Network.getNetworkId(), input);
+String jsonText = result.generations[0].text;
 ```
 
-## Option 2: Query Prompt and Use Its Structure
+`Input:*` keys **must match** the Flex template input API names in Prompt Builder (see [PROMPT_BUILDER_SETUP.md](./PROMPT_BUILDER_SETUP.md)).
 
-If Connect API doesn't work, we can:
+## References
 
-1. Query the Prompt object to get its prompt text
-2. Substitute variables manually
-3. Use createGenerations with the substituted prompt
-4. But this loses the template's Knowledge Grounding configuration
-
-## Next Steps
-
-1. **Test in Developer Console** - Try the Connect API syntax above
-2. **Check property names** - The exact property names may differ
-3. **Verify response structure** - Check how to extract the generated text
-
-## Current Code Status
-
-The code currently:
-- Queries the Prompt to verify it exists
-- Uses createGenerations with a prompt that references the template name
-- This won't actually invoke the template - it's just text
-
-We need to find the correct API method to actually invoke the template.
+- [Invoke prompt templates from Apex](https://developer.salesforce.com/blogs/2024/04/invoke-prompt-templates-from-flow-apex-or-the-rest-api)
+- [ISSUE_DESCRIPTION_FOR_EXPERTS.md](./ISSUE_DESCRIPTION_FOR_EXPERTS.md) — only relevant if you enable Data Library grounding on a template (not used in the default no-grounding design)

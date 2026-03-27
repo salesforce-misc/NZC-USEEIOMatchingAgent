@@ -25,20 +25,45 @@ private class LLMServiceTest {
     
     @isTest
     static void testSuggestNaicsCode_ThrowsException() {
-        // Since LLM integration is not yet configured, this should return error response
+        LLMService.testPromptGenerationJsonOverride = null;
         Test.startTest();
         LLMService.LLMResponse response = LLMService.suggestNaicsCode(
             'Accounting Services',
             'Financial Consulting',
             null,
-            new List<String>{'541211', '541219'},
+            new List<String>{ '541211', '541219' },
             null
         );
         Test.stopTest();
-        
-        // Should have error message when LLM not configured
+
         System.assertNotEquals(null, response, 'Response should not be null');
-        System.assert(String.isNotBlank(response.errorMessage), 'Should have error message when LLM not configured');
+        System.assert(
+            String.isNotBlank(response.errorMessage),
+            'Should have error message when template is unavailable or Connect API fails in test context'
+        );
+    }
+
+    @isTest
+    static void testSuggestNaicsCode_WithMockPromptJson() {
+        LLMService.testPromptGenerationJsonOverride =
+            '{"suggestedNaicsCode":"541211","confidence":"HIGH","reasoning":"From mock template","alternativeNaicsCodes":[],"uncertaintyFactors":[]}';
+        try {
+            Test.startTest();
+            LLMService.LLMResponse response = LLMService.suggestNaicsCode(
+                'Accounting',
+                'Tax',
+                null,
+                new List<String>{ '541211' },
+                null
+            );
+            Test.stopTest();
+
+            System.assertEquals('541211', response.suggestedNaicsCode);
+            System.assertEquals('HIGH', response.confidence);
+            System.assert(String.isBlank(response.errorMessage), 'Mock path should not set errorMessage');
+        } finally {
+            LLMService.testPromptGenerationJsonOverride = null;
+        }
     }
     
     @isTest
