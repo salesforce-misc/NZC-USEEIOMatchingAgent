@@ -1,0 +1,104 @@
+---
+description: Directives for LLMs on how to orient themselves within the codebase using the primary summary document.
+globs: **/*
+alwaysApply: true
+priority: critical
+---
+
+# Project Structure Reference
+
+## Purpose
+
+This rule provides directives for LLMs on how to orient themselves within the codebase using the primary summary document (`REPOSITORY_SUMMARY.md`). This ensures consistent, informed decision-making when working with the codebase.
+
+## Primary Resource
+
+**File:** `REPOSITORY_SUMMARY.md`  
+**Location:** Repository root (`./`)  
+**Description:** LLM-optimized overview of structure, architecture, and components.
+
+## When to Apply
+
+Apply this rule when:
+
+- User asks about project structure or architecture
+- User asks about technology stack
+- User needs to identify components and their purposes
+- User asks about relationships between codebase parts
+- Pre-computation context gathering before code changes
+- User asks about data models or key objects
+- User asks about deployment or development workflows
+
+## Mandatory Workflow
+
+When this rule is triggered, follow this workflow:
+
+### Step 1: Read Repository Summary
+
+**Action:** `READ_FILE`  
+**Target:** `REPOSITORY_SUMMARY.md`  
+**Rationale:** Establish baseline context before attempting specific tasks.
+
+### Step 2: Deep Dive with Tools
+
+**Action:** `INVOKE_TOOLS`  
+**Tools:** `codebase_search`, `grep`, `read_file`  
+**Rationale:** Deep dive into specific components identified in step 1.
+
+### Step 3: Execute Task
+
+**Action:** `EXECUTE_TASK`  
+**Rationale:** Make informed decisions based on the comprehensive context gathered.
+
+## Resource Contents Map
+
+The `REPOSITORY_SUMMARY.md` file contains:
+
+- **Overview:** Complete project overview and technology stack
+- **Architecture:** Detailed component architecture (LWC, Apex, Flows)
+- **Data:** Data model and object relationships
+- **Features:** Key features and functionalities
+- **Structure:** Directory structure and organization
+- **Standards:** Development guidelines and best practices
+- **External:** Integration points and external dependencies
+
+## Output Requirements
+
+When responding to queries covered by this rule:
+
+- **Format:** JSON (when structured output is needed)
+- **Enforcement:** Strict
+- **Instruction:** All outputs must be strictly formatted as valid JSON objects. Do not use conversational filler or markdown outside the JSON block.
+
+### JSON Structure Template
+
+```json
+{
+  "intent": "Brief summary of what was understood",
+  "findings": {
+    "Key information extracted from the summary document"
+  },
+  "relevant_components": [
+    "List of specific components found"
+  ],
+  "answer": "The direct response to the user's query",
+  "suggested_actions": [
+    "Next steps or relevant files to edit"
+  ]
+}
+```
+
+## Best Practices
+
+1. **Always read `REPOSITORY_SUMMARY.md` first** when working with the codebase
+2. **Use the summary as context** before making code changes
+3. **Reference component relationships** from the summary when explaining architecture
+4. **Follow the mandatory workflow** for consistent results
+5. **Use JSON format** when providing structured responses about the codebase
+
+## Notes
+
+- This rule is always applied (`alwaysApply: true`)
+- The repository summary is the single source of truth for project structure
+- Use the summary to understand relationships before diving into specific files
+- The summary is optimized for LLM consumption and provides quick context

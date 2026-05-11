@@ -1,0 +1,242 @@
+---
+description: Enforces Salesforce OSPO legal and compliance requirements for open-source accelerators. Based on https://github.com/salesforce/oss-template
+globs: *
+alwaysApply: false
+converted_to_skill: true
+skill_name: prepare-opensource
+migration_date: 2026-04-11
+---
+
+> **⚠️ MIGRATION NOTICE**
+> This rule has been converted to an interactive skill for better usability.
+>
+> **Use `/prepare-opensource` skill instead** for:
+> - Interactive OSPO compliance validation
+> - Automated file generation
+> - Internal reference scanning
+> - Copyright header addition
+> - Compliance checklist
+>
+> This file is kept as reference documentation for the underlying compliance requirements.
+
+---
+
+# OSPO Compliance & Legal Scrubbing Rules
+
+**Trigger:** Apply these rules when the user asks to "prepare repo for open source", "check compliance", or "publish accelerator".
+**⚠️ Recommended:** Use `/prepare-opensource` skill for interactive workflow.
+
+**CRITICAL:** All required files MUST be placed at the top level of the repository root directory. This is a mandatory requirement from the Salesforce OSS template.
+
+---
+
+## 1. Internal Reference Scrubbing (Mandatory)
+
+Before approving any code for publication, scan and flag/remove the following:
+
+**Internal Domains:** References to `*.sfdc.sh`, `*.salesforce.com` (internal wiki links), or internal Git hosts (`git.soma.salesforce.com`).
+
+**Internal Tools:** References to internal CI/CD systems (e.g., "GUS", "Grand Slam", internal Jenkins).
+
+**Internal Comments:** Comments mentioning "TO DO (Internal)", employee names, or internal team codes.
+
+**Non-Public Dependencies:** Ensure `sfdx-project.json` or `package.json` does not rely on private npm packages or internal Salesforce artifacts.
+
+---
+
+## 2. Mandatory Files Checklist (Top Level Only)
+
+**REQUIREMENT:** All files listed below MUST exist at the top level of the repository root directory. Files in subdirectories will NOT satisfy this requirement.
+
+Ensure the following files exist in the **root directory** (not in subdirectories). If missing, generate them:
+
+### 2.1 LICENSE.txt (or LICENSE)
+
+- **File Name:** `LICENSE.txt` (preferred) or `LICENSE` (acceptable)
+- **Location:** Root directory only
+- **Content:** Must contain the full text of the Apache License, version 2.0 (ALv2)
+- **Template:** Use the standard Apache 2.0 license text from https://raw.githubusercontent.com/salesforce/oss-template/main/LICENSE.txt
+- **Copyright Year:** Update to current year
+
+### 2.2 CONTRIBUTING.md
+
+- **File Name:** `CONTRIBUTING.md`
+- **Location:** Root directory only
+- **Content:** Standard file explaining how to contribute, report bugs, and rules of engagement
+- **Template:** Based on https://raw.githubusercontent.com/salesforce/oss-template/main/CONTRIBUTING.md
+- **Required Sections:**
+  - Governance Model (Community Based, Salesforce Sponsored, or Published but not supported)
+  - Getting started
+  - Issues, requests & ideas
+  - Contribution Checklist
+  - Creating a Pull Request
+  - Contributor License Agreement (CLA) reference
+  - Code of Conduct reference
+  - License reference
+
+### 2.3 CODE_OF_CONDUCT.md
+
+- **File Name:** `CODE_OF_CONDUCT.md`
+- **Location:** Root directory only
+- **Content:** Salesforce Open Source Community Code of Conduct
+- **Template:** Use exact content from https://raw.githubusercontent.com/salesforce/oss-template/main/CODE_OF_CONDUCT.md
+- **Contact:** Must include `ossconduct@salesforce.com` for reporting
+
+### 2.4 SECURITY.md
+
+- **File Name:** `SECURITY.md`
+- **Location:** Root directory only
+- **Content:** Security policy and reporting instructions
+- **Template:** Based on https://raw.githubusercontent.com/salesforce/oss-template/main/SECURITY.md
+- **Required:** Security reporting email: `security@salesforce.com`
+
+### 2.5 README.md
+
+- **File Name:** `README.md`
+- **Location:** Root directory only
+- **Content:** Detailed, useful information about the project
+- **Note:** Should contain detailed, useful information about the project (per OSS template requirements)
+
+### 2.6 CODEOWNERS (Optional but Recommended)
+
+- **File Name:** `CODEOWNERS`
+- **Location:** Root directory only
+- **Content:** File ownership and review assignments
+- **Template:** Based on https://raw.githubusercontent.com/salesforce/oss-template/main/CODEOWNERS
+- **Note:** Optional but recommended for larger projects
+
+---
+
+## 3. Copyright Headers
+
+All source code files (Apex, LWC/JS, CSS, CMP, HTML) must include the standard Salesforce copyright header.
+
+**Action:** If missing, add:
+
+```apex
+/*
+ * Copyright (c) [YEAR], Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/Apache-2.0
+ */
+```
+
+**For HTML/CMP files:**
+```html
+<!--
+ Copyright (c) [YEAR], Salesforce, Inc.
+ All rights reserved.
+ SPDX-License-Identifier: Apache-2.0
+ For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/Apache-2.0
+-->
+```
+
+**File Types Requiring Headers:**
+- `.cls` (Apex classes)
+- `.trigger` (Apex triggers)
+- `.js` (JavaScript/LWC)
+- `.css` (Stylesheets)
+- `.html` (HTML templates)
+- `.cmp` (Aura components)
+- `.js-meta.xml` (Metadata files - optional but recommended)
+
+---
+
+## 4. File Location Verification
+
+**CRITICAL CHECK:** Before approving, verify that all required files are at the repository root:
+
+```bash
+# Verify files exist at root level
+ls -la | grep -E "(LICENSE|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|README|CODEOWNERS)"
+```
+
+**Reject if:**
+- Files are in subdirectories (e.g., `docs/LICENSE.md` or `.github/CONTRIBUTING.md`)
+- Files have incorrect names (e.g., `LICENCE` instead of `LICENSE`)
+- Required files are missing
+
+**Accept if:**
+- All files are at root level
+- File names match exactly (case-sensitive)
+- Content matches templates
+
+---
+
+## 5. Content Verification
+
+### 5.1 LICENSE.txt Verification
+- [ ] Contains full Apache 2.0 license text
+- [ ] Copyright year is current or appropriate
+- [ ] No placeholder text remaining
+
+### 5.2 CONTRIBUTING.md Verification
+- [ ] Governance model selected and filled in
+- [ ] All placeholder `{project_slug}` replaced
+- [ ] CLA reference included
+- [ ] Code of Conduct reference included
+- [ ] License reference included
+
+### 5.3 CODE_OF_CONDUCT.md Verification
+- [ ] Exact Salesforce template content used
+- [ ] Contact email `ossconduct@salesforce.com` present
+- [ ] No modifications to standard text
+
+### 5.4 SECURITY.md Verification
+- [ ] Security reporting email `security@salesforce.com` present
+- [ ] Appropriate security policy content
+
+### 5.5 README.md Verification
+- [ ] Contains detailed, useful project information
+- [ ] Not just placeholder text
+- [ ] Includes installation, usage, and contribution information
+
+---
+
+## 6. Final Verification Checklist
+
+Before approving for publication, verify:
+
+- [ ] All required files exist at **root level only**
+- [ ] No internal references found (domains, tools, comments)
+- [ ] All dependencies are public
+- [ ] Copyright headers added to all source files
+- [ ] LICENSE.txt/LICENSE contains full Apache 2.0 text
+- [ ] CONTRIBUTING.md is complete and customized
+- [ ] CODE_OF_CONDUCT.md matches Salesforce template
+- [ ] SECURITY.md includes security@salesforce.com
+- [ ] README.md contains detailed project information
+- [ ] CODEOWNERS created (if applicable)
+
+---
+
+## 7. Approval Reminder
+
+**MANDATORY:** Remind the user before final approval:
+
+> "Have you obtained VP Approval, Legal Approval, and OSPO Approval via the OSS Request Portal (https://oss-request2.sfdc.sh/)?"
+
+---
+
+## 8. Reference Links
+
+- **OSS Template Repository:** https://github.com/salesforce/oss-template
+- **OSS Request Portal:** https://oss-request2.sfdc.sh/
+- **Apache 2.0 License:** https://www.apache.org/licenses/LICENSE-2.0
+- **Salesforce CLA:** https://cla.salesforce.com/sign-cla
+
+---
+
+## 9. Enforcement
+
+When applying these rules:
+
+1. **Check file locations first** - Reject if files are not at root level
+2. **Verify file names** - Must match exactly (case-sensitive)
+3. **Validate content** - Must match templates or be appropriately customized
+4. **Scan for internal references** - Flag any found
+5. **Verify copyright headers** - All source files must have them
+6. **Final approval check** - Remind about OSPO approval process
+
+**Non-negotiable:** Files MUST be at root level. This is a hard requirement from the Salesforce OSS template.
