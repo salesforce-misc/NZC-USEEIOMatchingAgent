@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Match_Confidence_Score__c</fullName>
+    <label>Match Confidence Score</label>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+    <description>AI-generated confidence score for the emissions factor match. Range: 0.00-1.00 (0.00-0.50 = Low, 0.51-0.75 = Medium, 0.76-1.00 = High)</description>
+    <inlineHelpText>Confidence score indicating how certain the AI is about this match. Higher scores indicate more reliable matches.</inlineHelpText>
+</CustomField>

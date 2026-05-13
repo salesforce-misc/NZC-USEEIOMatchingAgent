@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Review_Status__c</fullName>
+    <label>Review Status</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Pending Review</fullName>
+                <default>true</default>
+                <label>Pending Review</label>
+            </value>
+            <value>
+                <fullName>Reviewed</fullName>
+                <default>false</default>
+                <label>Reviewed</label>
+            </value>
+            <value>
+                <fullName>Skipped</fullName>
+                <default>false</default>
+                <label>Skipped</label>
+            </value>
+            <value>
+                <fullName>Passed Confidence Match</fullName>
+                <default>false</default>
+                <label>Passed Confidence Match</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+    <description>Status of manual review for items needing review after bulk matching. Pending Review = needs review, Reviewed = user has reviewed and accepted/rejected, Skipped = user skipped this item, Passed Confidence Match = AI matched with high confidence (no review needed).</description>
+    <inlineHelpText>Track your review progress: Pending Review (needs your attention), Reviewed (you've completed review), Skipped (you've skipped this item).</inlineHelpText>
+</CustomField>

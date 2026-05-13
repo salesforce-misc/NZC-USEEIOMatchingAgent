@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Bulk_Matching_Cost_Saved__c</fullName>
+    <description>Estimated cost savings from cache hits and deduplication (in USD). Calculated as (Cache_Hits + Deduplicated) × $0.0225 per LLM call.</description>
+    <label>Bulk Matching Cost Saved</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackHistory>false</trackHistory>
+    <type>Currency</type>
+</CustomField>
