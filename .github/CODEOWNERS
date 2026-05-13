@@ -1,0 +1,31 @@
+# CODEOWNERS for salesforce-misc/NZC-USEEIOMatchingAgent
+#
+# GitHub auto-requests reviews from listed owners on every PR that touches
+# matching paths. Order matters: the LAST matching pattern wins.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Required reviewers (configured via branch protection on `main`):
+#   - At least one approving CODEOWNER review before merge.
+#   - Stale reviews dismissed on new commits.
+
+# Default — everything not matched by a more specific rule
+*                                       @carlosvl @nicholaschughes
+
+# Salesforce metadata (Apex, LWC, objects, permission sets, etc.)
+/force-app/                             @carlosvl @nicholaschughes
+/manifest/                              @carlosvl @nicholaschughes
+/sfdx-project.json                      @carlosvl @nicholaschughes
+
+# Documentation
+/documentation/                         @carlosvl @nicholaschughes
+/README.md                              @carlosvl @nicholaschughes
+/REPOSITORY_SUMMARY.md                  @carlosvl
+
+# Cursor rules and AI grounding (Carlos owns the LLM grounding setup)
+/.cursor/                               @carlosvl
+/.cursor/rules/                         @carlosvl
+
+# Governance
+/LICENSE                                @carlosvl
+/CONTRIBUTING.md                        @carlosvl @nicholaschughes
+/.github/                               @carlosvl

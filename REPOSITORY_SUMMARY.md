@@ -66,6 +66,7 @@ objects/
 
 | Topic | Document |
 | ----- | -------- |
+| Governance | [CONTRIBUTING.md](./CONTRIBUTING.md), [.github/CODEOWNERS](./.github/CODEOWNERS), [LICENSE](./LICENSE) |
 | Salesforce + EMU-aligned standards | [SALESFORCE_BEST_PRACTICES.md](documentation/standards/SALESFORCE_BEST_PRACTICES.md) |
 | Bulk design | [BULK_MATCHING_DESIGN.md](documentation/architecture/BULK_MATCHING_DESIGN.md), [BULK_PROCESSING_FLOW_WITH_CACHING.md](documentation/architecture/BULK_PROCESSING_FLOW_WITH_CACHING.md) |
 | Prompt Builder / Connect API | [PROMPT_BUILDER_SETUP.md](documentation/llm-integration/PROMPT_BUILDER_SETUP.md), [CALL_PROMPT_TEMPLATE.md](documentation/llm-integration/CALL_PROMPT_TEMPLATE.md) |
@@ -76,10 +77,15 @@ objects/
 
 ## Development workflow
 
-1. Change metadata under `force-app/main/default/`.
-2. Deploy: `sf project deploy start` (or VS Code/Cursor Salesforce extensions).
-3. Run Apex tests: `sf apex run test --test-level RunLocalTests` (or scoped).
-4. LWC unit tests: `npm run test:unit`.
+`main` is **protected**. All changes land via PR with at least one approving CODEOWNER review (see [CONTRIBUTING.md](./CONTRIBUTING.md) for the full policy).
+
+1. `git checkout -b feat/short-description` off the latest `main`.
+2. Change metadata under `force-app/main/default/`.
+3. Deploy locally: `sf project deploy start` (or VS Code/Cursor Salesforce extensions).
+4. Run Apex tests: `sf apex run test --test-level RunLocalTests` (or scoped).
+5. LWC unit tests: `npm run test:unit`.
+6. Push branch and open a PR against `main`; request review from a CODEOWNER.
+7. Merge with **squash** or **rebase** (linear history required); merge commits are blocked.
 
 ## External references
 

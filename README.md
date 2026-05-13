@@ -25,7 +25,12 @@ For comprehensive details, see:
 ## Development standards
 
 - **[REPOSITORY_SUMMARY.md](./REPOSITORY_SUMMARY.md)** — Architecture, key Apex/LWC components, and documentation index (primary onboarding doc for contributors and AI tools).
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Branch/PR workflow, branch protection rules, commit style, and CODEOWNERS policy. **Read this before opening a PR.**
 - **[SALESFORCE_BEST_PRACTICES.md](documentation/standards/SALESFORCE_BEST_PRACTICES.md)** — Salesforce patterns for this app, including **alignment with the [Salesforce EMU LLM-Based-SalesforceProject](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject) template**: Queueable (not `@future`), optional Finalizer pattern, LWC/testing conventions, and Prompt Builder–first LLM configuration.
+
+## License
+
+Apache License 2.0. See [LICENSE](./LICENSE).
 
 ## Salesforce DX Project: Next Steps
 
