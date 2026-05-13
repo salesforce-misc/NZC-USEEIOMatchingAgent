@@ -4,6 +4,12 @@
 
 This file is the **primary orientation document** for humans and AI assistants working in this repo (pattern recommended by the [Salesforce EMU DX template](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject)). Expand it as the solution grows.
 
+## Canonical repository
+
+**Canonical location:** [`salesforce-misc/NZC-USEEIOMatchingAgent`](https://github.com/salesforce-misc/NZC-USEEIOMatchingAgent) — the single source of truth.
+
+> **All new development happens here.** The earlier repo `nicholaschughes/USEEIOMatchingAgent` was the initial development location; its history was merged in and it is no longer being synced from. There is intentionally **no `upstream` remote** configured — do not re-add one or attempt to pull from the old repo. Contributors who previously worked in the old repo must push directly to this repo (request collaborator access if needed).
+
 ## Overview
 
 - Single-item and **bulk** matching from a **Procurement Summary** (`Scope3PcmtSummary`), with batch/queueable processing and progress fields on the summary.

@@ -2,6 +2,8 @@
 
 A Salesforce application for matching and working with USEEIO v2.0 (US Environmentally-Extended Input-Output Model) data.
 
+> **Canonical repository:** [`salesforce-misc/NZC-USEEIOMatchingAgent`](https://github.com/salesforce-misc/NZC-USEEIOMatchingAgent). All new development happens here. The earlier repo `nicholaschughes/USEEIOMatchingAgent` is no longer being synced from — please push directly to this repo (request collaborator access if needed). See [`REPOSITORY_SUMMARY.md`](./REPOSITORY_SUMMARY.md#canonical-repository) for details.
+
 ## About USEEIO v2.0 and NAICS Codes
 
 This project works with **NAICS 2017 industry classification codes** for matching and analysis with the USEEIO v2.0 environmental-economic model.
