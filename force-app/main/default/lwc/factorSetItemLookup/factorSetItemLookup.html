@@ -1,0 +1,73 @@
+<template>
+    <div class="slds-combobox_container" onclick={handleContainerClick}>
+        <div class="slds-combobox slds-dropdown-trigger slds-dropdown-trigger_click" aria-expanded="true" aria-haspopup="listbox" role="combobox">
+            <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_right" role="none">
+                <input
+                    type="text"
+                    class="slds-input slds-combobox__input"
+                    placeholder="Search emissions factors..."
+                    value={displayValue}
+                    oninput={handleInputChange}
+                    onfocus={handleFocus}
+                    onblur={handleBlur}
+                    onclick={handleInputClick}
+                    autocomplete="off"
+                    role="textbox"
+                    aria-autocomplete="list"
+                    aria-controls="lookup-listbox"
+                    aria-activedescendant="">
+                <span class="slds-icon_container slds-icon-utility-search slds-input__icon slds-input__icon_right">
+                    <lightning-icon icon-name="utility:search" size="xx-small" alternative-text="Search"></lightning-icon>
+                </span>
+                <template if:true={selectedValue}>
+                    <button class="slds-button slds-button_icon slds-input__icon slds-input__icon_right slds-button_icon_small" 
+                            title="Clear" 
+                            onclick={handleClear}
+                            onmousedown={handleButtonClick}>
+                        <lightning-icon icon-name="utility:close" size="xx-small" alternative-text="Clear"></lightning-icon>
+                    </button>
+                </template>
+            </div>
+            <div id="lookup-listbox" class="slds-dropdown slds-dropdown_length-5 slds-dropdown_fluid" role="listbox" if:true={showDropdown}>
+                <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                    <template if:true={isLoading}>
+                        <li role="presentation" class="slds-listbox__item">
+                            <div class="slds-media slds-listbox__option slds-listbox__option_plain" role="option">
+                                <div class="slds-media__body">
+                                    <div class="slds-truncate">Searching...</div>
+                                </div>
+                            </div>
+                        </li>
+                    </template>
+                    <template if:false={isLoading}>
+                        <template for:each={options} for:item="option">
+                            <li key={option.value} role="presentation" class="slds-listbox__item">
+                                <div class="slds-media slds-listbox__option slds-listbox__option_plain" 
+                                     role="option"
+                                     data-value={option.value}
+                                     onclick={handleOptionSelect}
+                                     onmousedown={handleOptionMouseDown}>
+                                    <div class="slds-media__body">
+                                        <div class="slds-truncate" title={option.label}>{option.label}</div>
+                                        <template if:true={option.subtitle}>
+                                            <div class="slds-truncate slds-text-color_weak" title={option.subtitle}>{option.subtitle}</div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                        <template if:true={optionsEmpty}>
+                            <li role="presentation" class="slds-listbox__item">
+                                <div class="slds-media slds-listbox__option slds-listbox__option_plain" role="option">
+                                    <div class="slds-media__body">
+                                        <div class="slds-truncate">No results found</div>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                    </template>
+                </ul>
+            </div>
+        </div>
+    </div>
+</template>

@@ -20,6 +20,11 @@ For comprehensive details, see:
 - [NAICS_KNOWLEDGE_BASE.md](./NAICS_KNOWLEDGE_BASE.md) - NAICS 2017 classification system
 - [USEEIO_KNOWLEDGE_BASE.md](./USEEIO_KNOWLEDGE_BASE.md) - USEEIO v2.0 model (based on Ingwersen et al., 2022)
 
+## Development standards
+
+- **[REPOSITORY_SUMMARY.md](./REPOSITORY_SUMMARY.md)** — Architecture, key Apex/LWC components, and documentation index (primary onboarding doc for contributors and AI tools).
+- **[SALESFORCE_BEST_PRACTICES.md](./SALESFORCE_BEST_PRACTICES.md)** — Salesforce patterns for this app, including **alignment with the [Salesforce EMU LLM-Based-SalesforceProject](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject) template**: Queueable (not `@future`), optional Finalizer pattern, LWC/testing conventions, and Prompt Builder–first LLM configuration.
+
 ## Salesforce DX Project: Next Steps
 
 Now that you've created a Salesforce DX project, what's next? Here are some documentation resources to get you started.

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Match_Source__c</fullName>
+    <label>Match Source</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>AI Suggested</fullName>
+                <default>true</default>
+                <label>AI Suggested</label>
+            </value>
+            <value>
+                <fullName>User Override</fullName>
+                <default>false</default>
+                <label>User Override</label>
+            </value>
+            <value>
+                <fullName>Manual Selection</fullName>
+                <default>false</default>
+                <label>Manual Selection</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+    <description>Indicates how the emissions factor match was determined - by AI suggestion, user override, or manual selection.</description>
+    <inlineHelpText>How this match was created: AI Suggested (automatic), User Override (user corrected AI suggestion), or Manual Selection (user selected without AI).</inlineHelpText>
+</CustomField>

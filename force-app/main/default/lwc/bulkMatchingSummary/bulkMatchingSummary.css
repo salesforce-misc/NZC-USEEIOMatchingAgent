@@ -1,0 +1,23 @@
+/* Modal styles */
+.slds-modal__container {
+    max-width: 600px;
+}
+
+/* Ensure lookup component is visible in modal */
+.slds-modal__content c-factor-set-item-lookup {
+    display: block;
+    width: 100%;
+    position: relative;
+    z-index: 9000;
+}
+
+/* Ensure dropdown appears above modal backdrop - modal backdrop is z-index 9000 */
+.slds-modal__content c-factor-set-item-lookup .slds-dropdown {
+    z-index: 10000 !important;
+    position: absolute !important;
+}
+
+/* Ensure modal content allows dropdown to overflow */
+.slds-modal__content {
+    overflow: visible !important;
+}

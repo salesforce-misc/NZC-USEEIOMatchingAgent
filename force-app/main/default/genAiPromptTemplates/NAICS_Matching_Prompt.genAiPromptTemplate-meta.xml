@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GenAiPromptTemplate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <activeVersionIdentifier>Z7U6CK8OHArpQ04rJ5q36TpQjoCXg9PbSlcHi9VKktk=_1</activeVersionIdentifier>
+    <description>Maps procurement spending categories to NAICS 2017 using factor-set candidates and model knowledge (no Data Library grounding)</description>
+    <developerName>NAICS_Matching_Prompt</developerName>
+    <masterLabel>NAICS_Matching_Prompt</masterLabel>
+    <overridable>false</overridable>
+    <templateVersions>
+        <content>System: You are an expert in the North American Industry Classification System (NAICS) 2017. Your job is to map corporate procurement spending categories to the single best 6-digit NAICS industry code.
+
+You are not connected to a live document index. Use your knowledge of NAICS 2017 as published in public documentation (e.g. official NAICS manual / Census sector descriptions). The application supplies optional candidate codes and short labels from its emissions factor database—when provided, those codes are in-scope for the customer’s factor set.
+
+User: Spending categories to classify:
+Category 1: {!$Input:category1}
+Category 2: {!$Input:category2}
+Category 3: {!$Input:category3}
+
+Candidate NAICS codes (comma-separated; may be &quot;None provided&quot;): {!$Input:candidateCodes}
+
+Emissions-factor database labels for those candidates (may be &quot;None provided&quot;):
+{!$Input:candidateDescriptions}
+
+Rules:
+1) If the candidate list is not empty and not &quot;None provided&quot;, you MUST pick suggestedNaicsCode from that list only. Do not invent or substitute a different 6-digit code outside the list.
+2) If there are no candidates, infer the best 6-digit NAICS 2017 code from the category text using standard NAICS definitions.
+3) Use the candidate descriptions to disambiguate when multiple codes are plausible.
+4) reasoning should cite NAICS industry concepts (what the code covers) and how they align with the spend text—not citations to a private PDF.
+
+Return ONLY a single JSON object—no markdown fences, no commentary outside JSON:
+{
+  &quot;suggestedNaicsCode&quot;: &quot;6-digit code or null&quot;,
+  &quot;confidence&quot;: &quot;HIGH|MEDIUM|LOW&quot;,
+  &quot;reasoning&quot;: &quot;Concise justification using NAICS 2017 semantics and the candidate list when applicable&quot;,
+  &quot;alternativeNaicsCodes&quot;: [&quot;code1&quot;, &quot;code2&quot;],
+  &quot;uncertaintyFactors&quot;: [&quot;factor1&quot;, &quot;factor2&quot;]
+}
+``` {!$Input:candidateDescriptions}
+</content>
+        <fileDroppingStrategy>{&quot;dropFilesBy&quot;:&quot;LAST_MODIFIED_DATE&quot;,&quot;dropFileStartingWith&quot;:&quot;OLDEST&quot;}</fileDroppingStrategy>
+        <inputs>
+            <apiName>category1</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>category1</masterLabel>
+            <referenceName>Input:category1</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>category2</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>category2</masterLabel>
+            <referenceName>Input:category2</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>category3</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>category3</masterLabel>
+            <referenceName>Input:category3</referenceName>
+            <required>true</required>
+        </inputs>
+        <inputs>
+            <apiName>candidateCodes</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>candidateCodes</masterLabel>
+            <referenceName>Input:candidateCodes</referenceName>
+            <required>false</required>
+        </inputs>
+        <inputs>
+            <apiName>candidateDescriptions</apiName>
+            <definition>primitive://String</definition>
+            <masterLabel>candidateDescriptions</masterLabel>
+            <referenceName>Input:candidateDescriptions</referenceName>
+            <required>false</required>
+        </inputs>
+        <isCitationEnabled>false</isCitationEnabled>
+        <primaryModel>sfdc_ai__DefaultOpenAIGPT4OmniMini</primaryModel>
+        <status>Published</status>
+        <versionIdentifier>Z7U6CK8OHArpQ04rJ5q36TpQjoCXg9PbSlcHi9VKktk=_1</versionIdentifier>
+    </templateVersions>
+    <type>einstein_gpt__flex</type>
+    <visibility>Global</visibility>
+</GenAiPromptTemplate>
