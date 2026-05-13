@@ -33,9 +33,9 @@ ConnectApi.EinsteinPromptTemplateGenerationsRepresentation result =
 String jsonText = result.generations[0].text;
 ```
 
-`Input:*` keys **must match** the Flex template input API names in Prompt Builder (see [PROMPT_BUILDER_SETUP.md](./PROMPT_BUILDER_SETUP.md)).
+`Input:*` keys **must match** the Flex template input API names in Prompt Builder (see [PROMPT_BUILDER_SETUP.md](PROMPT_BUILDER_SETUP.md)).
 
 ## References
 
 - [Invoke prompt templates from Apex](https://developer.salesforce.com/blogs/2024/04/invoke-prompt-templates-from-flow-apex-or-the-rest-api)
-- [ISSUE_DESCRIPTION_FOR_EXPERTS.md](./ISSUE_DESCRIPTION_FOR_EXPERTS.md) — only relevant if you enable Data Library grounding on a template (not used in the default no-grounding design)
+- [ISSUE_DESCRIPTION_FOR_EXPERTS.md](../implementation/ISSUE_DESCRIPTION_FOR_EXPERTS.md) — only relevant if you enable Data Library grounding on a template (not used in the default no-grounding design)

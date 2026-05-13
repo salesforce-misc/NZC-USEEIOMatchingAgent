@@ -63,7 +63,7 @@ Add **five** text inputs so they match what `LLMService` sends (prefix `Input:` 
 
 Reference each input in the template body using your product’s merge syntax (often `{category1}` or `{{category1}}`—use whatever Prompt Builder shows for **Insert resource**).
 
-If API names differ in your org, update the constants `IN_*` in [`LLMService.cls`](./force-app/main/default/classes/LLMService.cls) to match **Input:YourApiName**.
+If API names differ in your org, update the constants `IN_*` in [`LLMService.cls`](../../force-app/main/default/classes/LLMService.cls) to match **Input:YourApiName**.
 
 ## Step 4: Write the Prompt Template
 
@@ -171,7 +171,7 @@ You can test the template directly in Prompt Builder:
 
 ### Retriever / Data Library errors from Connect API
 
-- Those usually appear only if grounding is **enabled** on the template. For this design, **disable** grounding. See [ISSUE_DESCRIPTION_FOR_EXPERTS.md](./ISSUE_DESCRIPTION_FOR_EXPERTS.md) for historical context.
+- Those usually appear only if grounding is **enabled** on the template. For this design, **disable** grounding. See [ISSUE_DESCRIPTION_FOR_EXPERTS.md](../implementation/ISSUE_DESCRIPTION_FOR_EXPERTS.md) for historical context.
 
 ## Next Steps
 
@@ -189,4 +189,4 @@ The app will:
 
 ---
 
-**Need help?** See [`CALL_PROMPT_TEMPLATE.md`](./CALL_PROMPT_TEMPLATE.md) and [`LLMService.cls`](./force-app/main/default/classes/LLMService.cls).
+**Need help?** See [`CALL_PROMPT_TEMPLATE.md`](CALL_PROMPT_TEMPLATE.md) and [`LLMService.cls`](../../force-app/main/default/classes/LLMService.cls).

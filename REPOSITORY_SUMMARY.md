@@ -15,7 +15,7 @@ This file is the **primary orientation document** for humans and AI assistants w
 
 - **Salesforce DX** (`sfdx-project.json`), Apex, LWC, Jest (`sfdx-lwc-jest`), ESLint, Prettier, Husky.
 - **Net Zero Cloud** standard objects: `Scope3PcmtItem`, `Scope3PcmtSummary`, `PcmtEmssnFctrSet`, `PcmtEmssnFctrSetItem`.
-- **Einstein / Agentforce**: `LLMService` invokes a **Prompt Builder** Flex template via **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`** (template name from `LLM_Config__mdt`). Default design uses **no Data Library grounding**—candidates + descriptions from Apex and model NAICS knowledge; cache in `LLM_Response_Cache__c` is checked in Apex before LLM calls. See `PROMPT_BUILDER_SETUP.md` and `CALL_PROMPT_TEMPLATE.md`.
+- **Einstein / Agentforce**: `LLMService` invokes a **Prompt Builder** Flex template via **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`** (template name from `LLM_Config__mdt`). Default design uses **no Data Library grounding**—candidates + descriptions from Apex and model NAICS knowledge; cache in `LLM_Response_Cache__c` is checked in Apex before LLM calls. See `documentation/llm-integration/PROMPT_BUILDER_SETUP.md` and `documentation/llm-integration/CALL_PROMPT_TEMPLATE.md`.
 
 ## Architecture (high level)
 
@@ -60,13 +60,13 @@ objects/
 
 | Topic | Document |
 | ----- | -------- |
-| Salesforce + EMU-aligned standards | [SALESFORCE_BEST_PRACTICES.md](./SALESFORCE_BEST_PRACTICES.md) |
-| Bulk design | [BULK_MATCHING_DESIGN.md](./BULK_MATCHING_DESIGN.md), [BULK_PROCESSING_FLOW_WITH_CACHING.md](./BULK_PROCESSING_FLOW_WITH_CACHING.md) |
-| Prompt Builder / Connect API | [PROMPT_BUILDER_SETUP.md](./PROMPT_BUILDER_SETUP.md), [CALL_PROMPT_TEMPLATE.md](./CALL_PROMPT_TEMPLATE.md) |
-| LLM setup | [LLM_INTEGRATION_SETUP.md](./LLM_INTEGRATION_SETUP.md), [QUICK_START_LLM.md](./QUICK_START_LLM.md) |
-| Domain | [NAICS_KNOWLEDGE_BASE.md](./NAICS_KNOWLEDGE_BASE.md), [USEEIO_KNOWLEDGE_BASE.md](./USEEIO_KNOWLEDGE_BASE.md) |
-| Testing | [TESTING_STRATEGY.md](./TESTING_STRATEGY.md), [SANDBOX_TESTING_PLAN.md](./SANDBOX_TESTING_PLAN.md) |
-| Known issues | [ISSUE_DESCRIPTION_FOR_EXPERTS.md](./ISSUE_DESCRIPTION_FOR_EXPERTS.md) |
+| Salesforce + EMU-aligned standards | [SALESFORCE_BEST_PRACTICES.md](documentation/standards/SALESFORCE_BEST_PRACTICES.md) |
+| Bulk design | [BULK_MATCHING_DESIGN.md](documentation/architecture/BULK_MATCHING_DESIGN.md), [BULK_PROCESSING_FLOW_WITH_CACHING.md](documentation/architecture/BULK_PROCESSING_FLOW_WITH_CACHING.md) |
+| Prompt Builder / Connect API | [PROMPT_BUILDER_SETUP.md](documentation/llm-integration/PROMPT_BUILDER_SETUP.md), [CALL_PROMPT_TEMPLATE.md](documentation/llm-integration/CALL_PROMPT_TEMPLATE.md) |
+| LLM setup | [LLM_INTEGRATION_SETUP.md](documentation/llm-integration/LLM_INTEGRATION_SETUP.md), [QUICK_START_LLM.md](documentation/llm-integration/QUICK_START_LLM.md) |
+| Domain | [NAICS_KNOWLEDGE_BASE.md](documentation/reference/NAICS_KNOWLEDGE_BASE.md), [USEEIO_KNOWLEDGE_BASE.md](documentation/reference/USEEIO_KNOWLEDGE_BASE.md) |
+| Testing | [TESTING_STRATEGY.md](documentation/testing/TESTING_STRATEGY.md), [SANDBOX_TESTING_PLAN.md](documentation/testing/SANDBOX_TESTING_PLAN.md) |
+| Known issues | [ISSUE_DESCRIPTION_FOR_EXPERTS.md](documentation/implementation/ISSUE_DESCRIPTION_FOR_EXPERTS.md) |
 
 ## Development workflow
 

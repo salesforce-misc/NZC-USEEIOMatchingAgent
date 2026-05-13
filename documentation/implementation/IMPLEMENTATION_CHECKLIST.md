@@ -12,7 +12,7 @@
 
 ### Step 1: Create Prompt Builder Template (15 minutes)
 
-**Follow:** `PROMPT_BUILDER_SETUP.md` for detailed instructions
+**Follow:** `../llm-integration/PROMPT_BUILDER_SETUP.md` for detailed instructions
 
 **Quick Summary:**
 1. Go to Setup → Prompt Builder
@@ -117,9 +117,9 @@ try {
 
 ## 📚 Resources
 
-- **Prompt Builder Setup:** `PROMPT_BUILDER_SETUP.md`
-- **Quick Start Guide:** `QUICK_START_LLM.md`
-- **Detailed Options:** `IMPLEMENT_LLM_API.md`
+- **Prompt Builder Setup:** `../llm-integration/PROMPT_BUILDER_SETUP.md`
+- **Quick Start Guide:** `../llm-integration/QUICK_START_LLM.md`
+- **Detailed Options:** `../llm-integration/IMPLEMENT_LLM_API.md`
 - **Salesforce Docs:** https://developer.salesforce.com/docs/ai/agentforce/guide/models-api.html
 
 ---

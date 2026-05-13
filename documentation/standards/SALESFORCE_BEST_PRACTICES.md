@@ -238,7 +238,7 @@ This project adopts conventions from the Salesforce EMU **Salesforce DX + AI dev
 
 ### Prompts and enterprise LLM
 
-- **Prompt text** should live in **Prompt Builder** (metadata in org / `GenAiPromptTemplate` in source) for maintainability and Trust Layer handling—not only in Apex string builders. This project’s default NAICS template **does not** rely on Data Library grounding; it mirrors the prior Models API pattern (candidates + model knowledge). See [PROMPT_BUILDER_SETUP.md](./PROMPT_BUILDER_SETUP.md) and **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`** in `LLMService`.
+- **Prompt text** should live in **Prompt Builder** (metadata in org / `GenAiPromptTemplate` in source) for maintainability and Trust Layer handling—not only in Apex string builders. This project’s default NAICS template **does not** rely on Data Library grounding; it mirrors the prior Models API pattern (candidates + model knowledge). See [PROMPT_BUILDER_SETUP.md](../llm-integration/PROMPT_BUILDER_SETUP.md) and **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`** in `LLMService`.
 
 ### Version control and delivery
 

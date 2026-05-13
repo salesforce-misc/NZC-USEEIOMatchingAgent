@@ -219,7 +219,7 @@ public class AlternativeMatch {
 - More context: Examples and descriptions provide nuance
 - Maintainable: Custom Metadata can be updated with new definitions
 
-See `ENHANCED_LLM_GROUNDING.md` for detailed implementation and data extraction strategy.
+See `../llm-grounding/ENHANCED_LLM_GROUNDING.md` for detailed implementation and data extraction strategy.
 
 ### Prompt Design:
 

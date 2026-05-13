@@ -17,13 +17,13 @@ This project works with **NAICS 2017 industry classification codes** for matchin
 **Key Principle:** The same USEEIO principles apply whether working with NAICS codes or BEA commodity categories. Environmental data sources use NAICS codes, which are then mapped to BEA commodity categories in the USEEIO model.
 
 For comprehensive details, see:
-- [NAICS_KNOWLEDGE_BASE.md](./NAICS_KNOWLEDGE_BASE.md) - NAICS 2017 classification system
-- [USEEIO_KNOWLEDGE_BASE.md](./USEEIO_KNOWLEDGE_BASE.md) - USEEIO v2.0 model (based on Ingwersen et al., 2022)
+- [NAICS_KNOWLEDGE_BASE.md](documentation/reference/NAICS_KNOWLEDGE_BASE.md) - NAICS 2017 classification system
+- [USEEIO_KNOWLEDGE_BASE.md](documentation/reference/USEEIO_KNOWLEDGE_BASE.md) - USEEIO v2.0 model (based on Ingwersen et al., 2022)
 
 ## Development standards
 
 - **[REPOSITORY_SUMMARY.md](./REPOSITORY_SUMMARY.md)** — Architecture, key Apex/LWC components, and documentation index (primary onboarding doc for contributors and AI tools).
-- **[SALESFORCE_BEST_PRACTICES.md](./SALESFORCE_BEST_PRACTICES.md)** — Salesforce patterns for this app, including **alignment with the [Salesforce EMU LLM-Based-SalesforceProject](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject) template**: Queueable (not `@future`), optional Finalizer pattern, LWC/testing conventions, and Prompt Builder–first LLM configuration.
+- **[SALESFORCE_BEST_PRACTICES.md](documentation/standards/SALESFORCE_BEST_PRACTICES.md)** — Salesforce patterns for this app, including **alignment with the [Salesforce EMU LLM-Based-SalesforceProject](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject) template**: Queueable (not `@future`), optional Finalizer pattern, LWC/testing conventions, and Prompt Builder–first LLM configuration.
 
 ## Salesforce DX Project: Next Steps
 
