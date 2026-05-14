@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/Apache-2.0
+ */
+
 /**
  * @description Batch Apex class for bulk matching Scope3PcmtItem records
  * @description Processes items in batches with Response Caching and Deduplication

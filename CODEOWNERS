@@ -26,6 +26,9 @@
 /.cursor/rules/                         @carlosvl
 
 # Governance
-/LICENSE                                @carlosvl
+/LICENSE.txt                            @carlosvl
+/CODEOWNERS                             @carlosvl
 /CONTRIBUTING.md                        @carlosvl @nicholaschughes
+/CODE_OF_CONDUCT.md                     @carlosvl
+/SECURITY.md                            @carlosvl
 /.github/                               @carlosvl

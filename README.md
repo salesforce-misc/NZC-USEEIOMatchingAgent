@@ -25,12 +25,14 @@ For comprehensive details, see:
 ## Development standards
 
 - **[REPOSITORY_SUMMARY.md](./REPOSITORY_SUMMARY.md)** — Architecture, key Apex/LWC components, and documentation index (primary onboarding doc for contributors and AI tools).
-- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Branch/PR workflow, branch protection rules, commit style, and CODEOWNERS policy. **Read this before opening a PR.**
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Branch/PR workflow, branch protection rules, commit style, governance model, CLA reference, and CODEOWNERS policy. **Read this before opening a PR.**
+- **[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)** — Salesforce Open Source Community Code of Conduct.
+- **[SECURITY.md](./SECURITY.md)** — How to report security vulnerabilities (`security@salesforce.com`).
 - **[SALESFORCE_BEST_PRACTICES.md](documentation/standards/SALESFORCE_BEST_PRACTICES.md)** — Salesforce patterns for this app, including **alignment with the [Salesforce EMU LLM-Based-SalesforceProject](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject) template**: Queueable (not `@future`), optional Finalizer pattern, LWC/testing conventions, and Prompt Builder–first LLM configuration.
 
 ## License
 
-Apache License 2.0. See [LICENSE](./LICENSE).
+Apache License 2.0. See [LICENSE.txt](./LICENSE.txt). Copyright (c) 2026 Salesforce, Inc.
 
 ## Salesforce DX Project: Next Steps
 
