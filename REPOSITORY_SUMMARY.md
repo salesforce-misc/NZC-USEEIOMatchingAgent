@@ -66,7 +66,7 @@ objects/
 
 | Topic | Document |
 | ----- | -------- |
-| Governance | [CONTRIBUTING.md](./CONTRIBUTING.md), [.github/CODEOWNERS](./.github/CODEOWNERS), [LICENSE](./LICENSE) |
+| Governance | [CONTRIBUTING.md](./CONTRIBUTING.md), [CODEOWNERS](./CODEOWNERS), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md), [LICENSE.txt](./LICENSE.txt) |
 | Salesforce + EMU-aligned standards | [SALESFORCE_BEST_PRACTICES.md](documentation/standards/SALESFORCE_BEST_PRACTICES.md) |
 | Bulk design | [BULK_MATCHING_DESIGN.md](documentation/architecture/BULK_MATCHING_DESIGN.md), [BULK_PROCESSING_FLOW_WITH_CACHING.md](documentation/architecture/BULK_PROCESSING_FLOW_WITH_CACHING.md) |
 | Prompt Builder / Connect API | [PROMPT_BUILDER_SETUP.md](documentation/llm-integration/PROMPT_BUILDER_SETUP.md), [CALL_PROMPT_TEMPLATE.md](documentation/llm-integration/CALL_PROMPT_TEMPLATE.md) |
