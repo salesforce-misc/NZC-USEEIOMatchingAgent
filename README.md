@@ -102,24 +102,17 @@ sf project deploy start --source-dir force-app --target-org MyOrg
 After deploying with any method above:
 
 1. **Confirm metadata deployment**
-   - Verify classes, LWCs, objects, and custom metadata deployed successfully.
-2. **Configure LLM prompt settings**
-   - Set prompt template and invocation app values in `LLM_Config__mdt`.
-3. **Assign required permissions**
-   - Ensure users can access matching UI, Apex actions, and target NZC objects.
-4. **Validate the flow**
-   - Test a single-item match, then test a bulk run from a procurement summary record.
+   - Verify classes, LWCs, objects, custom metadata, and the `NAICS_Matching_Prompt` prompt template deployed successfully.
+2. **Assign required permissions**
+   - Assign the "Bulk Matching Access" permission set to users who need to access the asset.
+3. **Add the `bulkMatchingSummary` LWC to the "Scope 3 Procurement Summary" lightning page**
+4. **Add the Scope 3 Procurement Item custom fields to the page layout or lightning page**
+5. **Validate the flow**
+   - Test a bulk run from a procurement summary record.
 
 ---
 
 ## 🎯 Usage
-
-### 🔍 **Single Item Matching**
-
-1. **Open** a procurement item context in the matching UI.
-2. **Run** candidate generation and LLM-assisted matching.
-3. **Review** selected factor, confidence score, and alternatives.
-4. **Apply** the chosen match to the target record.
 
 ### 📦 **Bulk Matching from Summary**
 
