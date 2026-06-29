@@ -103,7 +103,7 @@ In Claude Code, the same `/` invocation works once the skill files are visible t
 1. Checks for required files at root level (`LICENSE`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`)
 2. Generates missing files from the Salesforce OSS templates
 3. Validates existing file content
-4. Scans for internal Salesforce references (`*.sfdc.sh`, internal tools)
+4. Scans for non-public internal references before release
 5. Adds copyright headers to source files (`.cls`, `.js`, `.html`, `.css`)
 6. Creates a detailed compliance checklist
 7. Guides through the approval process
