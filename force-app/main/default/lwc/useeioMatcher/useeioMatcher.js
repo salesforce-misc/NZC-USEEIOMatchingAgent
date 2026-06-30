@@ -6,7 +6,7 @@
  */
 
 import { LightningElement, api, wire } from 'lwc';
-import { getRecord, getFieldValue } from 'lightning/uiRecordApi';
+import { getRecord, getFieldValue, notifyRecordUpdateAvailable, refresh } from 'lightning/uiRecordApi';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import matchSpendItemToFactor from '@salesforce/apex/USEEIOMatchingService.matchSpendItemToFactor';
 import applyMatchFromResult from '@salesforce/apex/USEEIOMatchingService.applyMatchFromResult';
@@ -52,9 +52,12 @@ export default class UseeioMatcher extends LightningElement {
     hasMatch = false;
     showResults = false;
     
-    // Wire record data
+    // Wire record data — stored so refresh() can invalidate the cache
+    wiredRecordResult;
     @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
-    wiredRecord({ error, data }) {
+    wiredRecord(result) {
+        this.wiredRecordResult = result;
+        const { error, data } = result;
         if (data) {
             this.spendingCategory1 = getFieldValue(data, SPENDING_CATEGORY_1_FIELD);
             this.spendingCategory2 = getFieldValue(data, SPENDING_CATEGORY_2_FIELD);
@@ -233,8 +236,13 @@ export default class UseeioMatcher extends LightningElement {
      * Refresh the record data
      */
     refreshRecord() {
-        // Force refresh of wired record
-        this.recordId = this.recordId;
+        // Invalidate the UI API cache so other components on the page (e.g. the
+        // PcmtEmssnFctrSetItemId lookup field) immediately reflect the DML update.
+        notifyRecordUpdateAvailable([{ recordId: this.recordId }]);
+        // Re-fetch this component's own wired data.
+        if (this.wiredRecordResult) {
+            refresh(this.wiredRecordResult);
+        }
     }
     
     /**
