@@ -12,10 +12,10 @@ This file is the **primary orientation document** for humans and AI assistants w
 
 ## Overview
 
-Completing a spend-based Scope 3 emissions inventory requires mapping every line of procurement spend to an emissions factor — a selection from 1,016 possible NAICS industry codes. The manual process does not scale. The USEEIO Matching Agent automates this classification pipeline:
+Completing a spend-based Scope 3 emissions inventory requires mapping every line of procurement spend to the right emissions factor — choosing from hundreds of industry average emissions factors across the full USEEIO reference set. The manual process does not scale. The USEEIO Matching Agent automates this classification pipeline:
 
-- **Keyword pre-filtering** (`KeywordMatchingService`) narrows 1,016 NAICS codes to the top 50 most likely candidates for each set of spending categories.
-- **Einstein AI** (`LLMService` via Prompt Builder) selects the single best match from those candidates and returns a confidence level and reasoning.
+- **Keyword pre-filtering** (`KeywordMatchingService`) narrows the full set of 1,016 NAICS codes to the top 50 most likely candidates for each set of spending categories.
+- **Agentforce** (`LLMService` via Prompt Builder) selects the single best match from those candidates and returns a confidence level and reasoning.
 - **Confidence scoring** (`USEEIOMatchingService.calculateConfidenceScore`) computes a composite 0.0–1.0 score from the LLM confidence signal, match count, and factor set validation.
 - **Auto-apply**: Items scoring at or above the configurable threshold (default `0.7`) are matched automatically. Items below threshold are queued for human review.
 - **Response caching** (`LLMResponseCache`) persists LLM outputs keyed by spending category hash + factor set ID to eliminate repeated callouts on identical inputs.
@@ -27,8 +27,8 @@ Completing a spend-based Scope 3 emissions inventory requires mapping every line
 
 - **Salesforce DX** (`sfdx-project.json`), Apex, LWC, Jest (`sfdx-lwc-jest`), ESLint, Prettier, Husky.
 - **Net Zero Cloud** standard objects: `Scope3PcmtItem`, `Scope3PcmtSummary`, `PcmtEmssnFctrSet`, `PcmtEmssnFctrSetItem`.
-- **Einstein / Prompt Builder**: `LLMService` invokes a **Flex Prompt Template** (`NAICS_Matching_Prompt`) via **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`**. Template API name and invocation application name are read from `LLM_Config__mdt` at runtime. Default design uses **no Data Library grounding** — candidates and descriptions come from Apex; the model uses its NAICS 2017 knowledge to select from the supplied candidate list.
-- **Einstein Flex Credits**: Every LLM call that is not served from cache or deduplicated within a batch run consumes Flex Credits. Confirm availability with the Salesforce AE before production use.
+- **Agentforce / Prompt Builder**: `LLMService` invokes a **Flex Prompt Template** (`NAICS_Matching_Prompt`) via **`ConnectApi.EinsteinLLM.generateMessagesForPromptTemplate`**. Template API name and invocation application name are read from `LLM_Config__mdt` at runtime. Default design uses **no Data Library grounding** — candidates and descriptions come from Apex; the model uses its NAICS 2017 knowledge to select from the supplied candidate list.
+- **Agentforce Flex Credits**: Every LLM call that is not served from cache or deduplicated within a batch run consumes Agentforce Flex Credits. Confirm availability with the Salesforce AE before production use.
 
 ## Architecture (high level)
 
@@ -41,7 +41,7 @@ Completing a spend-based Scope 3 emissions inventory requires mapping every line
 | `LLMResponseCache` | Cache CRUD for `LLM_Response_Cache__c`. Keyed by SHA-256 hash of `"cat1\|cat2\|cat3"` + factor set ID. |
 | `BulkMatchingQueueable` | Validates summary prerequisites, initializes `Scope3PcmtSummary` status fields, starts batch job. |
 | `BulkMatchingBatch` | Stateful batch (25 items/execution): in-memory dedupe, cache read, deferred DML, deferred cache write, item updates. Loads `LLM_Config__mdt` once in constructor — instance variables persist across all `execute()` calls via `Database.Stateful`. |
-| `NAICS_Matching_Prompt` | Flex Prompt Template: receives candidate NAICS codes + descriptions from Apex, returns best-match code with confidence and reasoning as structured JSON. Candidate constraint in system prompt prevents hallucinated codes. |
+| `NAICS_Matching_Prompt` | Agentforce Prompt Builder Flex Template: receives candidate NAICS codes + descriptions from Apex, returns best-match code with confidence and reasoning as structured JSON. Candidate constraint in system prompt prevents hallucinated codes. |
 | `LLM_Config__mdt` (Default record) | Runtime config: prompt template API name, invocation app name, auto-apply threshold, LLM score mappings, and scoring weights. |
 
 ## Key paths (`force-app/main/default`)

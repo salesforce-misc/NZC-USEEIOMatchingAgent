@@ -12,7 +12,7 @@ The process doesn't scale. A 500-line spend file is 500 individual lookups, each
 
 ## The Solution
 
-The USEEIO Matching Agent automates the bulk of that classification work. It narrows the field of 1,016 possible codes down to the most likely candidates using keyword matching, then uses Einstein AI to identify the single best match for each spending category — along with a confidence score. High-confidence matches are applied automatically. Anything the system is less certain about is flagged for human review, so the sustainability manager stays in control of quality without having to touch every record.
+The USEEIO Matching Agent automates the bulk of that classification work. It narrows the field down to the most likely candidates using keyword matching, then uses Agentforce to identify the single best match for each spending category — along with a confidence score. High-confidence matches are applied automatically. Anything the system is less certain about is flagged for human review, so the sustainability manager stays in control of quality without having to touch every record.
 
 The system runs entirely inside Salesforce Net Zero Cloud. No external tools, no data exports, no manual re-entry.
 
@@ -36,7 +36,7 @@ The system runs entirely inside Salesforce Net Zero Cloud. No external tools, no
 
 ### 🤖 **Matching Intelligence**
 
-- **Hybrid candidate selection**: Combines deterministic keyword filtering with LLM reasoning to improve NAICS mapping quality.
+- **Hybrid candidate selection**: Combines deterministic keyword filtering with Agentforce reasoning to improve NAICS mapping quality.
 - **Alternative match suggestions**: Returns top candidates with confidence and reasoning for analyst review.
 - **NAICS-aware behavior**: Uses NAICS 2017 definitions while supporting USEEIO model expectations.
 
@@ -66,9 +66,9 @@ Before you begin, ensure you have the following:
 - ✅ **Net Zero Cloud** installed and relevant procurement/emissions objects available
 - ✅ **Salesforce CLI** installed (`sf` or `sfdx`)
 - ✅ **Git** installed on your local machine
-- ✅ **Einstein Generative AI / Prompt Builder access** enabled in your org
+- ✅ **Agentforce / Prompt Builder access** enabled in your org
 
-> ⚠️ **Einstein Flex Credits required.** Every LLM call to `ConnectApi.EinsteinLLM` (i.e. every item that is not served from the response cache or deduplicated within a batch run) consumes Einstein Flex Credits. NZC customers without a prior Einstein Add-On purchase will not have Flex Credits provisioned. **Confirm Flex Credits availability with your Salesforce AE before running bulk matching in production.** The first bulk run against a new set of spending data is the most expensive; subsequent runs on similar data are largely served from cache.
+> ⚠️ **Agentforce Flex Credits required.** Every LLM call (i.e. every item that is not served from the response cache or deduplicated within a batch run) consumes Agentforce Flex Credits. NZC customers without a prior Agentforce or Einstein Add-On purchase will not have Flex Credits provisioned. **Confirm Flex Credits availability with your Salesforce AE before running bulk matching in production.** The first bulk run against a new set of spending data is the most expensive; subsequent runs on similar data are largely served from cache.
 
 ### 🔧 Installation
 
@@ -200,7 +200,7 @@ graph TB
 | `bulkMatchingSummaryModal` | LWC | Modal component for reviewing and acting on low-confidence items from a bulk run |
 | `factorSetItemLookup` | LWC | Custom lookup component for searching and selecting `PcmtEmssnFctrSetItem` records filtered by factor set |
 | `customDatatable` | LWC | Extended datatable supporting inline lookup cells for the review queue |
-| `NAICS_Matching_Prompt` | Flex Prompt Template | Einstein AI prompt defining the system role, candidate-selection constraint, and structured JSON output schema |
+| `NAICS_Matching_Prompt` | Flex Prompt Template | Agentforce Prompt Builder template defining the system role, candidate-selection constraint, and structured JSON output schema |
 | `LLM_Config__mdt` | Custom Metadata Type | Runtime configuration — prompt template API name, invocation application name, auto-apply threshold, and all scoring weights |
 | `LLM_Response_Cache__c` | Custom Object | Persists LLM responses keyed by category hash + factor set ID to eliminate repeat callouts |
 | `Bulk_Matching_Access` | Permission Set | Grants Apex class access and CRUD on all matching-related objects and fields |
