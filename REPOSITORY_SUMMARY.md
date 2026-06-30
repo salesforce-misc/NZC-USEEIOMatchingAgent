@@ -1,6 +1,6 @@
 # USEEIO Matching Agent — Repository Summary
 
-**USEEIO Matching Agent** is a Salesforce DX project for **Net Zero Cloud** that matches procurement line items (`Scope3PcmtItem`) to **USEEIO-style** emissions factor rows (`PcmtEmssnFctrSetItem`) using **NAICS 2017**-oriented logic, keyword pre-filtering, an **LLM** (Models API today; migration to **Prompt Builder** planned), and **response caching** on `LLM_Response_Cache__c`.
+**USEEIO Matching Agent** is a Salesforce DX project for **Net Zero Cloud** that matches procurement line items (`Scope3PcmtItem`) to **USEEIO-style** emissions factor rows (`PcmtEmssnFctrSetItem`) using **NAICS 2017**-oriented logic, keyword pre-filtering, an **LLM** invoked via **Prompt Builder**, and **response caching** on `LLM_Response_Cache__c`.
 
 This file is the **primary orientation document** for humans and AI assistants working in this repo (pattern recommended by the [Salesforce EMU DX template](https://github.com/jvillalpando_sfemu/LLM-Based-SalesforceProject)). Expand it as the solution grows.
 
@@ -34,6 +34,7 @@ This file is the **primary orientation document** for humans and AI assistants w
 | `LLMResponseCache` | Cache CRUD for `LLM_Response_Cache__c`. |
 | `BulkMatchingQueueable` | Validates summary, sets status, starts batch job. |
 | `BulkMatchingBatch` | Stateful batch: dedupe, cache read, callouts, deferred cache write, DML updates. |
+| `NAICS_Matching_Prompt` (genAiPromptTemplate) | Prompt Builder Flex template that receives candidate NAICS codes and descriptions from Apex and returns the best-match NAICS code with confidence and reasoning as structured JSON. |
 
 ## Key paths (`force-app/main/default`)
 
