@@ -33,8 +33,12 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
     // With 25 items, we can process ~2-3 items per second and stay under 60 seconds
     // This allows processing tens of thousands of items across multiple batch executions
     private static final Integer MAX_ITEMS_PER_EXECUTION = 25; // Conservative limit to avoid CPU timeouts
-    private static final Decimal CONFIDENCE_THRESHOLD = 0.7; // Auto-apply threshold
     // Note: Batch size in executeBatch() should match MAX_ITEMS_PER_EXECUTION to ensure all items are processed
+
+    // Loaded once in constructor so thousands of execute() calls all share the same values
+    // without repeating getInstance() on every batch chunk.
+    private Decimal confidenceThreshold;
+    private Decimal llmScoreMedium;
     
     /**
      * @description Constructor
@@ -42,7 +46,13 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
      */
     public BulkMatchingBatch(Id summaryId) {
         this.scope3PcmtSummaryId = summaryId;
-        
+
+        // Load configurable thresholds once — instance variables persist across execute() calls
+        // (Database.Stateful) so we pay the getInstance() cost exactly once per batch job.
+        LLM_Config__mdt cfg = LLM_Config__mdt.getInstance('Default');
+        this.confidenceThreshold = (cfg != null && cfg.Auto_Apply_Threshold__c != null) ? cfg.Auto_Apply_Threshold__c : 0.7;
+        this.llmScoreMedium      = (cfg != null && cfg.LLM_Score_Medium__c != null)      ? cfg.LLM_Score_Medium__c      : 0.6;
+
         // Query and cache summary record
         List<Scope3PcmtSummary> summaries = [
             SELECT Id, PcmtEmssnFctrId
@@ -50,7 +60,7 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
             WHERE Id = :summaryId
             LIMIT 1
         ];
-        
+
         if (!summaries.isEmpty()) {
             this.summary = summaries[0];
             this.pcmtEmssnFctrSetId = summaries[0].PcmtEmssnFctrId;
@@ -229,8 +239,8 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                             // We'll need to reconstruct it from the result
                             LLMService.LLMResponse llmResponseToCache = new LLMService.LLMResponse();
                             llmResponseToCache.suggestedNaicsCode = result.recommendedNaicsCode;
-                            llmResponseToCache.confidence = result.confidenceScore >= 0.7 ? 'HIGH' : 
-                                                           (result.confidenceScore >= 0.5 ? 'MEDIUM' : 'LOW');
+                            llmResponseToCache.confidence = result.confidenceScore >= confidenceThreshold ? 'HIGH' :
+                                                           (result.confidenceScore >= llmScoreMedium ? 'MEDIUM' : 'LOW');
                             llmResponseToCache.reasoning = result.reasoning;
                             
                             // Store cache entry info for later save
@@ -311,11 +321,11 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                 continue;
             }
             
-            System.debug('Processing result for item ' + item.Id + ': status=' + result.status + 
-                        ', confidence=' + result.confidenceScore + ', threshold=' + CONFIDENCE_THRESHOLD);
-            
+            System.debug('Processing result for item ' + item.Id + ': status=' + result.status +
+                        ', confidence=' + result.confidenceScore + ', threshold=' + confidenceThreshold);
+
             // Auto-apply high confidence matches
-            if (result.status == 'MATCHED' && result.confidenceScore >= CONFIDENCE_THRESHOLD) {
+            if (result.status == 'MATCHED' && result.confidenceScore >= confidenceThreshold) {
                 System.debug('Auto-matching item ' + item.Id + ' with confidence ' + result.confidenceScore);
                 item.PcmtEmssnFctrSetItemId = result.recommendedFactorId;
                 item.Match_Confidence_Score__c = result.confidenceScore;
@@ -620,7 +630,7 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
         result.emissionsFactorValue = recommendedFactor.TotScpe3EmssnPerMillionSpent;
         result.confidenceScore = confidenceScore;
         result.reasoning = cachedResponse.reasoning;
-        result.status = confidenceScore >= CONFIDENCE_THRESHOLD ? 'MATCHED' : 'REQUIRES_REVIEW';
+        result.status = confidenceScore >= confidenceThreshold ? 'MATCHED' : 'REQUIRES_REVIEW';
         
         // Add alternatives if available
         if (cachedResponse.alternativeNaicsCodes != null && !cachedResponse.alternativeNaicsCodes.isEmpty()) {

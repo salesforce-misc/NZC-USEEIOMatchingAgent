@@ -13,6 +13,22 @@
  * @date 2025-01-XX
  */
 public class USEEIOMatchingService {
+
+    // Cached config for the current transaction — avoids repeated getInstance() calls
+    // within a single @AuraEnabled invocation.
+    private static LLM_Config__mdt cachedConfig;
+
+    private static LLM_Config__mdt getConfig() {
+        if (cachedConfig == null) {
+            cachedConfig = LLM_Config__mdt.getInstance('Default');
+        }
+        return cachedConfig;
+    }
+
+    public static Decimal getAutoApplyThreshold() {
+        LLM_Config__mdt cfg = getConfig();
+        return (cfg != null && cfg.Auto_Apply_Threshold__c != null) ? cfg.Auto_Apply_Threshold__c : 0.7;
+    }
     
     /**
      * @description Bulk matching method to process multiple Scope3PcmtItem records
@@ -373,7 +389,7 @@ public class USEEIOMatchingService {
             result.emissionsFactorValue = recommendedFactor.TotScpe3EmssnPerMillionSpent;
             result.confidenceScore = confidenceScore;
             result.reasoning = llmResponse.reasoning;
-            result.status = confidenceScore >= 0.5 ? 'MATCHED' : 'REQUIRES_REVIEW';
+            result.status = confidenceScore >= getAutoApplyThreshold() ? 'MATCHED' : 'REQUIRES_REVIEW';
             
             System.debug('Final result for item ' + item.Id + ': status=' + result.status + 
                         ', confidence=' + confidenceScore + ', factorId=' + result.recommendedFactorId);
@@ -463,8 +479,11 @@ public class USEEIOMatchingService {
             try {
                 LLMService.LLMResponse responseToCache = new LLMService.LLMResponse();
                 responseToCache.suggestedNaicsCode = result.recommendedNaicsCode;
-                responseToCache.confidence = result.confidenceScore >= 0.7 ? 'HIGH' :
-                    (result.confidenceScore >= 0.5 ? 'MEDIUM' : 'LOW');
+                Decimal autoApply = getAutoApplyThreshold();
+                LLM_Config__mdt cfg = getConfig();
+                Decimal scoreMedium = (cfg != null && cfg.LLM_Score_Medium__c != null) ? cfg.LLM_Score_Medium__c : 0.6;
+                responseToCache.confidence = result.confidenceScore >= autoApply ? 'HIGH' :
+                    (result.confidenceScore >= scoreMedium ? 'MEDIUM' : 'LOW');
                 responseToCache.reasoning = result.reasoning;
                 LLMResponseCache.saveResponse(
                     item.SpendingCategory1,
@@ -616,37 +635,40 @@ public class USEEIOMatchingService {
         List<PcmtEmssnFctrSetItem> matches,
         String llmConfidence
     ) {
+        LLM_Config__mdt cfg = getConfig();
+        Decimal llmWeight       = (cfg != null && cfg.LLM_Weight__c != null)         ? cfg.LLM_Weight__c         : 0.6;
+        Decimal matchCountWeight = (cfg != null && cfg.Match_Count_Weight__c != null) ? cfg.Match_Count_Weight__c : 0.2;
+        Decimal factorSetWeight  = (cfg != null && cfg.Factor_Set_Weight__c != null)  ? cfg.Factor_Set_Weight__c  : 0.2;
+        Decimal llmScoreHigh    = (cfg != null && cfg.LLM_Score_High__c != null)      ? cfg.LLM_Score_High__c     : 0.9;
+        Decimal llmScoreMedium  = (cfg != null && cfg.LLM_Score_Medium__c != null)    ? cfg.LLM_Score_Medium__c   : 0.6;
+        Decimal llmScoreLow     = (cfg != null && cfg.LLM_Score_Low__c != null)       ? cfg.LLM_Score_Low__c      : 0.3;
+
         Decimal score = 0.0;
-        
-        // Factor 1: LLM Confidence (60% weight)
+
+        // Factor 1: LLM Confidence
         Decimal llmConfidenceValue = 0.0;
         if (llmConfidence == 'HIGH') {
-            llmConfidenceValue = 0.9;
+            llmConfidenceValue = llmScoreHigh;
         } else if (llmConfidence == 'MEDIUM') {
-            llmConfidenceValue = 0.6;
+            llmConfidenceValue = llmScoreMedium;
         } else if (llmConfidence == 'LOW') {
-            llmConfidenceValue = 0.3;
+            llmConfidenceValue = llmScoreLow;
         }
-        score += llmConfidenceValue * 0.6;
-        
-        // Factor 2: Match Count (20% weight)
-        // Single match = highest confidence, multiple matches = slightly lower
+        score += llmConfidenceValue * llmWeight;
+
+        // Factor 2: Match Count
         Decimal matchCountValue = 0.0;
         if (matches.size() == 1) {
             matchCountValue = 1.0;
         } else if (matches.size() > 1) {
-            matchCountValue = 0.9; // Multiple matches slightly reduce confidence
-        } else {
-            matchCountValue = 0.0;
+            matchCountValue = 0.9;
         }
-        score += matchCountValue * 0.2;
-        
-        // Factor 3: Factor Set Validation (20% weight)
-        // If we found matches in the correct factor set, that's good
+        score += matchCountValue * matchCountWeight;
+
+        // Factor 3: Factor Set Validation
         Decimal factorSetValue = matches.isEmpty() ? 0.0 : 1.0;
-        score += factorSetValue * 0.2;
-        
-        // Ensure score is between 0.0 and 1.0
+        score += factorSetValue * factorSetWeight;
+
         return Math.min(1.0, Math.max(0.0, score));
     }
     
@@ -885,20 +907,20 @@ public class USEEIOMatchingService {
     @AuraEnabled(cacheable=true)
     public static List<Scope3PcmtItem> getItemsNeedingReview(Id scope3PcmtSummaryId) {
         try {
+            Decimal autoApplyThreshold = getAutoApplyThreshold();
             // Get items with no match or low confidence that haven't been reviewed yet
             List<Scope3PcmtItem> items = [
                 SELECT Id, Name, SpendingCategory1, SpendingCategory2, SpendingCategory3,
-                       PcmtEmssnFctrSetItemId, PcmtEmssnFctrSetItem.Name, 
+                       PcmtEmssnFctrSetItemId, PcmtEmssnFctrSetItem.Name,
                        Match_Confidence_Score__c, Match_Reasoning__c,
                        Match_Source__c, Review_Status__c
                 FROM Scope3PcmtItem
                 WHERE ProcurementSummaryId = :scope3PcmtSummaryId
                 AND (
                     PcmtEmssnFctrSetItemId = null
-                    OR Match_Confidence_Score__c < 0.7
+                    OR Match_Confidence_Score__c < :autoApplyThreshold
                 )
                 AND (Review_Status__c = 'Pending Review' OR Review_Status__c = null)
-                // Note: Items with 'Passed Confidence Match' are automatically excluded by the above condition
                 ORDER BY Match_Confidence_Score__c DESC NULLS LAST, Name
                 LIMIT 1000
             ];
@@ -1129,6 +1151,8 @@ public class USEEIOMatchingService {
         Map<String, Integer> stats = new Map<String, Integer>();
         
         try {
+            Decimal autoApplyThreshold = getAutoApplyThreshold();
+
             // Count items needing review (no match or low confidence)
             Integer totalNeedingReview = [
                 SELECT COUNT()
@@ -1136,10 +1160,10 @@ public class USEEIOMatchingService {
                 WHERE ProcurementSummaryId = :scope3PcmtSummaryId
                 AND (
                     PcmtEmssnFctrSetItemId = null
-                    OR Match_Confidence_Score__c < 0.7
+                    OR Match_Confidence_Score__c < :autoApplyThreshold
                 )
             ];
-            
+
             // Count pending review
             Integer pendingReview = [
                 SELECT COUNT()
@@ -1147,7 +1171,7 @@ public class USEEIOMatchingService {
                 WHERE ProcurementSummaryId = :scope3PcmtSummaryId
                 AND (
                     PcmtEmssnFctrSetItemId = null
-                    OR Match_Confidence_Score__c < 0.7
+                    OR Match_Confidence_Score__c < :autoApplyThreshold
                 )
                 AND (Review_Status__c = 'Pending Review' OR Review_Status__c = null)
             ];
@@ -1190,6 +1214,7 @@ public class USEEIOMatchingService {
      */
     private static void recalculateItemsNeedingReview(Id summaryId) {
         try {
+            Decimal autoApplyThreshold = getAutoApplyThreshold();
             // Count items matching the same criteria as getItemsNeedingReview
             Integer itemsNeedingReview = [
                 SELECT COUNT()
@@ -1197,7 +1222,7 @@ public class USEEIOMatchingService {
                 WHERE ProcurementSummaryId = :summaryId
                 AND (
                     PcmtEmssnFctrSetItemId = null
-                    OR Match_Confidence_Score__c < 0.7
+                    OR Match_Confidence_Score__c < :autoApplyThreshold
                 )
                 AND (Review_Status__c = 'Pending Review' OR Review_Status__c = null)
             ];
