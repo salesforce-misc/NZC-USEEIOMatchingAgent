@@ -1,4 +1,4 @@
-# Permissions Checklist for Bulk Matching LWC
+# Permissions Checklist
 
 ## Issue: Buttons are Disabled
 
@@ -27,7 +27,6 @@ Your user profile needs **Read** access to these custom fields on `Scope3PcmtSum
 - ✅ `Bulk_Matching_Cache_Hits__c`
 - ✅ `Bulk_Matching_Deduplicated__c`
 - ✅ `Bulk_Matching_LLM_Calls__c`
-- ✅ `Bulk_Matching_Cost_Saved__c`
 - ✅ `PcmtEmssnFctrId` (standard field - should already have access)
 
 Your user profile needs **Read** and **Edit** access to these custom fields on `Scope3PcmtItem`:
@@ -69,13 +68,16 @@ If you're using a System Administrator profile, you should already have all perm
 3. Check **Object Settings** for each object listed above
 4. Check **Field-Level Security** for each custom field
 
-### Option 3: Use Permission Sets (Recommended for Testing)
+### Option 3: Use Permission Sets (Recommended)
+A `Bulk_Matching_Access` permission set is included in the deployed metadata and covers all the object, field, and Apex class permissions listed above.
+
 1. Go to **Setup > Users > Permission Sets**
-2. Create a new Permission Set: "Bulk Matching Access"
-3. Add Object Permissions for all objects listed above
-4. Add Field Permissions for all custom fields listed above
-5. Add Apex Class Access for all classes listed above
-6. Assign the Permission Set to your user
+2. Open **Bulk Matching Access**
+3. Verify the permissions match those listed above
+4. Assign the permission set to each user who needs access:
+   ```bash
+   sf org assign permset --name Bulk_Matching_Access --target-org <your-org-alias>
+   ```
 
 ## Debugging Steps
 
@@ -96,14 +98,21 @@ The LWC uses `@wire(getRecord)` to load the `Scope3PcmtSummary` record. If this 
 - Check record sharing (if using sharing rules)
 
 ### Step 3: Check Apex Method Access
-The LWC calls these Apex methods:
+The LWCs call these Apex methods:
+
+**`bulkMatchingSummary` (on Scope3PcmtSummary):**
 - `USEEIOMatchingService.startBulkMatching`
 - `USEEIOMatchingService.getMatchingStatus`
 - `USEEIOMatchingService.getItemsNeedingReview`
 - `USEEIOMatchingService.markItemsAsReviewed`
+- `USEEIOMatchingService.getReviewStatistics`
+
+**`useeioMatcher` (on Scope3PcmtItem):**
+- `USEEIOMatchingService.matchSpendItemToFactor`
+- `USEEIOMatchingService.applyMatchFromResult`
 
 If these fail, check:
-- Apex class access in your profile
+- Apex class access in your profile or permission set
 - Method visibility (should be `public` with `@AuraEnabled`)
 
 ## Quick Fix: Grant All Permissions
@@ -122,23 +131,27 @@ If you have admin access, the quickest way is to:
 
 ## Why Buttons Are Disabled
 
-The "Match All Items" button is disabled when:
+### `bulkMatchingSummary` — "Run Bulk Matching" button
+
+Disabled when any of the following are true:
 - `isLoading` is true (button clicked, processing)
-- `currentStatus === 'IN_PROGRESS'` (matching already running)
-- `hasFactorSet` is false (no `PcmtEmssnFctrId` on the record)
+- `currentStatus === 'In Progress'` (a bulk job is already running)
+- `hasFactorSet` is false (no `PcmtEmssnFctrId` on the summary record)
 
-The `hasFactorSet` getter checks:
-```javascript
-get hasFactorSet() {
-    return getFieldValue(this.wiredSummary?.data, PCMT_EMSSN_FCTR_ID_FIELD) != null;
-}
-```
+If `PcmtEmssnFctrId` is populated on the record but the button is still disabled, the wire service is likely failing to load the record — check FLS on `PcmtEmssnFctrId` and the object permissions on `Scope3PcmtSummary`.
 
-If `wiredSummary?.data` is null or undefined, or if `PcmtEmssnFctrId` is null, the button stays disabled.
+### `useeioMatcher` — "Find Emissions Factor" button
+
+Disabled when:
+- `isLoading` is true (a match request is in flight)
+
+The "Apply Match" button (shown after a result is returned) is additionally disabled when:
+- No match result is available
+- The result status is not `MATCHED` or `REQUIRES_REVIEW`
 
 ## Next Steps
 
-1. Check browser console for errors
-2. Verify you have System Administrator profile (or all permissions listed above)
-3. If still disabled, check if `PcmtEmssnFctrId` field has a value on the record
-4. Check if wire service is loading data (inspect `wiredSummary` in browser console)
+1. Check browser console for errors (`Access Denied` = FLS issue; `INSUFFICIENT_ACCESS` = object or Apex class access)
+2. Verify the `Bulk_Matching_Access` permission set is assigned to the user
+3. If the bulk matching button is still disabled, confirm `PcmtEmssnFctrId` has a value on the summary record
+4. If the single-item matcher shows no result, confirm the `Scope3PcmtItem` record has `SpendingCategory1` populated and the parent summary has a factor set configured
