@@ -191,16 +191,13 @@ Search all files for internal Salesforce references that must be scrubbed:
 
 **Internal Domains**:
 
-- `*.sfdc.sh`
-- `*.salesforce.com` (internal wiki links)
-- `git.soma.salesforce.com`
-- Internal Git hosts
+- Corporate internal domains and wiki hosts
+- Internal-only Git hosts
 
 **Internal Tools**:
 
-- GUS (reference to internal issue tracking)
-- Grand Slam
-- Internal Jenkins/CI systems
+- Internal issue tracking systems
+- Internal-only CI systems
 - Bazel commands (internal build tool)
 
 **Internal Comments**:
@@ -293,7 +290,7 @@ Generate a final checklist and present to user:
 
 ### Internal Reference Scan
 
-- [ ] No \*.sfdc.sh domains
+- [ ] No internal corporate domains
 - [ ] No internal Salesforce.com links
 - [ ] No internal tool references
 - [ ] No employee names or internal comments
@@ -304,7 +301,7 @@ Generate a final checklist and present to user:
 - [ ] Test in sandbox environment
 - [ ] Obtain VP Approval
 - [ ] Obtain Legal Approval
-- [ ] Obtain OSPO Approval via https://oss-request2.sfdc.sh/
+- [ ] Obtain OSPO Approval via your organization's OSS approval process
 ```
 
 ### Step 8: Final Approval Reminder
@@ -321,7 +318,7 @@ the following approvals before making it public:
 2. Legal Approval
 3. OSPO Approval
 
-Submit your request at: https://oss-request2.sfdc.sh/
+Submit your request via your organization's OSS approval portal.
 
 Do NOT make this repository public without proper approvals.
 ```
@@ -342,7 +339,7 @@ rg "\.sfdc\.sh" --glob '!node_modules' --glob '!.git'
 rg "git\.soma\.salesforce\.com" --glob '!node_modules' --glob '!.git'
 
 # Scan for internal tools
-rg "GUS|Grand Slam" --glob '!node_modules' --glob '!.git'
+rg "internal issue tracker|internal CI" --glob '!node_modules' --glob '!.git'
 
 # Check dependencies
 cat sfdx-project.json | grep -i "internal\|private"
@@ -436,7 +433,7 @@ All templates based on: https://github.com/salesforce/oss-template
 ### Key URLs
 
 - **OSS Template**: https://github.com/salesforce/oss-template
-- **OSS Request Portal**: https://oss-request2.sfdc.sh/
+- **OSS Request Portal**: Your organization's approved OSS intake portal
 - **Apache 2.0 License**: https://www.apache.org/licenses/LICENSE-2.0
 - **Salesforce CLA**: https://cla.salesforce.com/sign-cla
 - **Security Contact**: security@salesforce.com
@@ -474,7 +471,7 @@ After all steps complete, generate summary:
 
 1. Review all changes in detail
 2. Test in sandbox environment
-3. Submit OSPO approval request: https://oss-request2.sfdc.sh/
+3. Submit OSPO approval request via your organization's OSS intake portal
 4. Obtain VP and Legal approvals
 
 Do NOT make repository public until all approvals received

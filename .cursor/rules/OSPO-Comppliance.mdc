@@ -34,9 +34,9 @@ migration_date: 2026-04-11
 
 Before approving any code for publication, scan and flag/remove the following:
 
-**Internal Domains:** References to `*.sfdc.sh`, `*.salesforce.com` (internal wiki links), or internal Git hosts (`git.soma.salesforce.com`).
+**Internal Domains:** References to corporate internal domains, private wiki links, or internal Git hosts.
 
-**Internal Tools:** References to internal CI/CD systems (e.g., "GUS", "Grand Slam", internal Jenkins).
+**Internal Tools:** References to internal issue tracking or internal CI/CD systems not accessible publicly.
 
 **Internal Comments:** Comments mentioning "TO DO (Internal)", employee names, or internal team codes.
 
@@ -215,14 +215,14 @@ Before approving for publication, verify:
 
 **MANDATORY:** Remind the user before final approval:
 
-> "Have you obtained VP Approval, Legal Approval, and OSPO Approval via the OSS Request Portal (https://oss-request2.sfdc.sh/)?"
+> "Have you obtained VP Approval, Legal Approval, and OSPO Approval via your organization's OSS Request Portal?"
 
 ---
 
 ## 8. Reference Links
 
 - **OSS Template Repository:** https://github.com/salesforce/oss-template
-- **OSS Request Portal:** https://oss-request2.sfdc.sh/
+- **OSS Request Portal:** Your organization's official OSS submission portal
 - **Apache 2.0 License:** https://www.apache.org/licenses/LICENSE-2.0
 - **Salesforce CLA:** https://cla.salesforce.com/sign-cla
 
