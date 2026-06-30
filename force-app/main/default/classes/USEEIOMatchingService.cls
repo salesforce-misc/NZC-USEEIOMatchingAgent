@@ -244,8 +244,8 @@ public class USEEIOMatchingService {
                     candidateCodeDescriptions
                 );
                 
-                // NOTE: Cache save is deferred to avoid pending DML during callout phase
-                // Cache will be saved after all callouts are complete (handled in BulkMatchingBatch)
+                // Cache save is deferred: caller handles it after the callout completes.
+                // BulkMatchingBatch saves after its callout loop; matchSpendItemToFactor saves immediately.
             }
             
             if (llmResponse == null) {
@@ -436,7 +436,7 @@ public class USEEIOMatchingService {
             WHERE Id = :scope3PcmtItemId
             LIMIT 1
         ];
-        
+
         Scope3PcmtSummary summary = null;
         if (item.ProcurementSummaryId != null) {
             List<Scope3PcmtSummary> summaries = [
@@ -449,8 +449,36 @@ public class USEEIOMatchingService {
                 summary = summaries[0];
             }
         }
-        
-        return matchSpendItemToFactorInternal(item, summary);
+
+        MatchingResult result = matchSpendItemToFactorInternal(item, summary);
+
+        // Save successful result to cache. The callout inside matchSpendItemToFactorInternal
+        // has already completed, so DML is safe here (callout-then-DML is allowed in Apex).
+        // The bulk batch defers cache saves because it makes multiple callouts in a loop;
+        // the single-item path makes exactly one, so we save immediately after.
+        if (result != null &&
+            (result.status == 'MATCHED' || result.status == 'REQUIRES_REVIEW') &&
+            String.isNotBlank(result.recommendedNaicsCode) &&
+            summary != null && summary.PcmtEmssnFctrId != null) {
+            try {
+                LLMService.LLMResponse responseToCache = new LLMService.LLMResponse();
+                responseToCache.suggestedNaicsCode = result.recommendedNaicsCode;
+                responseToCache.confidence = result.confidenceScore >= 0.7 ? 'HIGH' :
+                    (result.confidenceScore >= 0.5 ? 'MEDIUM' : 'LOW');
+                responseToCache.reasoning = result.reasoning;
+                LLMResponseCache.saveResponse(
+                    item.SpendingCategory1,
+                    item.SpendingCategory2,
+                    item.SpendingCategory3,
+                    summary.PcmtEmssnFctrId,
+                    responseToCache
+                );
+            } catch (Exception cacheEx) {
+                System.debug('Cache save failed in single-item path: ' + cacheEx.getMessage());
+            }
+        }
+
+        return result;
     }
     
     /**
