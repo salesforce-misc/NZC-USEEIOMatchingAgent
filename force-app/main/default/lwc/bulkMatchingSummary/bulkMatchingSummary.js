@@ -28,7 +28,6 @@ import BULK_MATCHING_ITEMS_NEEDING_REVIEW_FIELD from '@salesforce/schema/Scope3P
 import BULK_MATCHING_CACHE_HITS_FIELD from '@salesforce/schema/Scope3PcmtSummary.Bulk_Matching_Cache_Hits__c';
 import BULK_MATCHING_DEDUPLICATED_FIELD from '@salesforce/schema/Scope3PcmtSummary.Bulk_Matching_Deduplicated__c';
 import BULK_MATCHING_LLM_CALLS_FIELD from '@salesforce/schema/Scope3PcmtSummary.Bulk_Matching_LLM_Calls__c';
-import BULK_MATCHING_COST_SAVED_FIELD from '@salesforce/schema/Scope3PcmtSummary.Bulk_Matching_Cost_Saved__c';
 
 const FIELDS = [
     BULK_MATCHING_STATUS_FIELD,
@@ -38,8 +37,7 @@ const FIELDS = [
     BULK_MATCHING_ITEMS_NEEDING_REVIEW_FIELD,
     BULK_MATCHING_CACHE_HITS_FIELD,
     BULK_MATCHING_DEDUPLICATED_FIELD,
-    BULK_MATCHING_LLM_CALLS_FIELD,
-    BULK_MATCHING_COST_SAVED_FIELD
+    BULK_MATCHING_LLM_CALLS_FIELD
 ];
 
 export default class BulkMatchingSummary extends LightningElement {
@@ -407,17 +405,6 @@ export default class BulkMatchingSummary extends LightningElement {
             return `${reviewed} reviewed, ${skipped} skipped, ${pending} pending`;
         }
         return '0 reviewed, 0 skipped, 0 pending';
-    }
-    
-    get costSavedFormatted() {
-        if (this.matchingStatus && this.matchingStatus.costSaved) {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD',
-                minimumFractionDigits: 2
-            }).format(this.matchingStatus.costSaved);
-        }
-        return '$0.00';
     }
     
     get cacheHitsDisplay() {

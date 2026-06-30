@@ -413,8 +413,7 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
                 SELECT Id, Bulk_Matching_Status__c, Bulk_Matching_Completed_Date__c,
                        Bulk_Matching_Items_Processed__c, Bulk_Matching_Items_Matched__c,
                        Bulk_Matching_Items_Needing_Review__c, Bulk_Matching_Cache_Hits__c,
-                       Bulk_Matching_Deduplicated__c, Bulk_Matching_LLM_Calls__c,
-                       Bulk_Matching_Cost_Saved__c
+                       Bulk_Matching_Deduplicated__c, Bulk_Matching_LLM_Calls__c
                 FROM Scope3PcmtSummary
                 WHERE Id = :scope3PcmtSummaryId
                 LIMIT 1
@@ -433,25 +432,19 @@ public class BulkMatchingBatch implements Database.Batchable<Scope3PcmtItem>, Da
             summaryToUpdate.Bulk_Matching_Cache_Hits__c = totalCached;
             summaryToUpdate.Bulk_Matching_Deduplicated__c = totalDeduplicated;
             summaryToUpdate.Bulk_Matching_LLM_Calls__c = totalLLMCalls;
-            
-            // Calculate cost savings (Cache hits + Deduplicated) × $0.0225 per call
-            Decimal costPerCall = 0.0225;
-            Decimal costSaved = (Decimal.valueOf(totalCached) + Decimal.valueOf(totalDeduplicated)) * costPerCall;
-            summaryToUpdate.Bulk_Matching_Cost_Saved__c = costSaved;
-            
+
             update summaryToUpdate;
-            
+
             // #region agent log
             System.debug('[DEBUG] BulkMatchingBatch.finish - AFTER UPDATE: updatedProcessed=' + summaryToUpdate.Bulk_Matching_Items_Processed__c + ', updatedMatched=' + summaryToUpdate.Bulk_Matching_Items_Matched__c + ', updatedNeedsReview=' + summaryToUpdate.Bulk_Matching_Items_Needing_Review__c);
             // #endregion
-            
-            System.debug('Bulk matching completed. Processed: ' + totalProcessed + 
-                        ', Matched: ' + totalMatched + 
+
+            System.debug('Bulk matching completed. Processed: ' + totalProcessed +
+                        ', Matched: ' + totalMatched +
                         ', Needs Review: ' + totalNeedsReview +
                         ', Cache Hits: ' + totalCached +
                         ', Deduplicated: ' + totalDeduplicated +
-                        ', LLM Calls: ' + totalLLMCalls +
-                        ', Cost Saved: $' + costSaved);
+                        ', LLM Calls: ' + totalLLMCalls);
             
         } catch (Exception e) {
             System.debug('Error updating summary in finish method: ' + e.getMessage());

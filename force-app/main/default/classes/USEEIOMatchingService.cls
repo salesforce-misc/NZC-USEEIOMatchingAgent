@@ -807,7 +807,7 @@ public class USEEIOMatchingService {
                        Bulk_Matching_Completed_Date__c, Bulk_Matching_Items_Processed__c,
                        Bulk_Matching_Items_Matched__c, Bulk_Matching_Items_Needing_Review__c,
                        Bulk_Matching_Cache_Hits__c, Bulk_Matching_Deduplicated__c,
-                       Bulk_Matching_LLM_Calls__c, Bulk_Matching_Cost_Saved__c
+                       Bulk_Matching_LLM_Calls__c
                 FROM Scope3PcmtSummary
                 WHERE Id = :scope3PcmtSummaryId
                 LIMIT 1
@@ -838,8 +838,7 @@ public class USEEIOMatchingService {
             status.cacheHits = summary.Bulk_Matching_Cache_Hits__c != null ? summary.Bulk_Matching_Cache_Hits__c.intValue() : 0;
             status.deduplicated = summary.Bulk_Matching_Deduplicated__c != null ? summary.Bulk_Matching_Deduplicated__c.intValue() : 0;
             status.llmCalls = summary.Bulk_Matching_LLM_Calls__c != null ? summary.Bulk_Matching_LLM_Calls__c.intValue() : 0;
-            status.costSaved = summary.Bulk_Matching_Cost_Saved__c != null ? summary.Bulk_Matching_Cost_Saved__c : 0.0;
-            
+
             // Get total items count - count ALL items for this summary
             Integer totalItems = [
                 SELECT COUNT()

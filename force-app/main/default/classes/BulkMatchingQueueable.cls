@@ -73,7 +73,6 @@ public class BulkMatchingQueueable implements Queueable {
             summary.Bulk_Matching_Cache_Hits__c = 0;
             summary.Bulk_Matching_Deduplicated__c = 0;
             summary.Bulk_Matching_LLM_Calls__c = 0;
-            summary.Bulk_Matching_Cost_Saved__c = 0;
             
             // #region agent log
             System.debug('[DEBUG] BulkMatchingQueueable.execute - BEFORE UPDATE: setting status=In Progress, processed=0, unmatchedItems=' + itemCount);
