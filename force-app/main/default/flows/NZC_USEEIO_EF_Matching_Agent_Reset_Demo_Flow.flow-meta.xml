@@ -142,9 +142,6 @@
             <field>Bulk_Matching_Completed_Date__c</field>
         </inputAssignments>
         <inputAssignments>
-            <field>Bulk_Matching_Cost_Saved__c</field>
-        </inputAssignments>
-        <inputAssignments>
             <field>Bulk_Matching_Deduplicated__c</field>
         </inputAssignments>
         <inputAssignments>

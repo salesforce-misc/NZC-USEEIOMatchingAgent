@@ -10,4 +10,32 @@
         <field>Prompt_Invocation_Application_Name__c</field>
         <value xsi:type="xsd:string">PromptBuilderPreview</value>
     </values>
+    <values>
+        <field>Auto_Apply_Threshold__c</field>
+        <value xsi:type="xsd:double">0.7</value>
+    </values>
+    <values>
+        <field>LLM_Weight__c</field>
+        <value xsi:type="xsd:double">0.6</value>
+    </values>
+    <values>
+        <field>Match_Count_Weight__c</field>
+        <value xsi:type="xsd:double">0.2</value>
+    </values>
+    <values>
+        <field>Factor_Set_Weight__c</field>
+        <value xsi:type="xsd:double">0.2</value>
+    </values>
+    <values>
+        <field>LLM_Score_High__c</field>
+        <value xsi:type="xsd:double">0.9</value>
+    </values>
+    <values>
+        <field>LLM_Score_Medium__c</field>
+        <value xsi:type="xsd:double">0.6</value>
+    </values>
+    <values>
+        <field>LLM_Score_Low__c</field>
+        <value xsi:type="xsd:double">0.3</value>
+    </values>
 </CustomMetadata>
